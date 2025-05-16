@@ -196,7 +196,7 @@ st.sidebar.header("Pretrained Model")
 
 # Add this button in the sidebar
 if st.sidebar.button("Load Pretrained Model from GitHub"):
-    PRETRAINED_MODEL_URL = "https://github.com/yourusername/yourrepo/raw/main/.devcontainer/Use%20This%20One_UNet3D_patients125_epochs20_batch1_depth130.pth"
+    PRETRAINED_MODEL_URL = "https://github.com/Vwoudka/segmed/blob/main/.devcontainer/Use%20This%20One_UNet3D_patients125_epochs20_batch1_depth130"
     
     with st.spinner("Downloading pretrained model..."):
         try:
