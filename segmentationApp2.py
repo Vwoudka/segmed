@@ -195,8 +195,11 @@ uploaded_model_file = st.sidebar.file_uploader("Upload 3D U-Net Model (.pth)", t
 st.sidebar.header("Pretrained Model")
 
 # Add this button in the sidebar
+st.sidebar.header("Pretrained Model")
+
+# Add this button in the sidebar
 if st.sidebar.button("Load Pretrained Model from GitHub"):
-    PRETRAINED_MODEL_URL = "https://github.com/Vwoudka/segmed/blob/main/.devcontainer/Use%20This%20One_UNet3D_patients125_epochs20_batch1_depth130.pth"
+    PRETRAINED_MODEL_URL = "https://github.com/yourusername/yourrepo/raw/main/.devcontainer/Use%20This%20One_UNet3D_patients125_epochs20_batch1_depth130.pth"
     
     with st.spinner("Downloading pretrained model..."):
         try:
@@ -210,11 +213,13 @@ if st.sidebar.button("Load Pretrained Model from GitHub"):
                 tf_model.write(response.content)
                 model_path_temp = tf_model.name
             
-            # Load the model
+            # Load the model with weights_only=False
             st.info("Loading U-Net with pretrained weights...")
             model = UNet3D(in_channels=param_in_channels, out_channels=param_out_classes, 
                           base_features=param_base_features)
-            model.load_state_dict(torch.load(model_path_temp, map_location=st.session_state.device))
+            model.load_state_dict(torch.load(model_path_temp, 
+                                          map_location=st.session_state.device,
+                                          weights_only=False))  # Changed this line
             os.remove(model_path_temp)  # Clean up temp file
             model.to(st.session_state.device).eval()
             st.session_state.model_loaded = model
