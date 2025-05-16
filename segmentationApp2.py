@@ -191,9 +191,6 @@ param_base_features = st.sidebar.number_input("Base Features", min_value=8, valu
 
 uploaded_model_file = st.sidebar.file_uploader("Upload 3D U-Net Model (.pth)", type=["pth"])
 
-# Add this in the sidebar section where you have other configuration options
-st.sidebar.header("Pretrained Model")
-
 # Add this button in the sidebar
 st.sidebar.header("Pretrained Model")
 
