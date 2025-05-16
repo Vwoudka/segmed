@@ -190,6 +190,40 @@ param_out_classes = st.sidebar.number_input("Output Classes (Total, incl. backgr
 param_base_features = st.sidebar.number_input("Base Features", min_value=8, value=DEFAULT_BASE_FEATURES, step=16, key="param_base_f")
 
 uploaded_model_file = st.sidebar.file_uploader("Upload 3D U-Net Model (.pth)", type=["pth"])
+
+# Add this in the sidebar section where you have other configuration options
+st.sidebar.header("Pretrained Model")
+
+# Add this button in the sidebar
+if st.sidebar.button("Load Pretrained Model from GitHub"):
+    PRETRAINED_MODEL_URL = "https://github.com/yourusername/yourrepo/raw/main/.devcontainer/Use%20This%20One_UNet3D_patients125_epochs20_batch1_depth130.pth"
+    
+    with st.spinner("Downloading pretrained model..."):
+        try:
+            # Download the model file
+            import requests
+            response = requests.get(PRETRAINED_MODEL_URL)
+            response.raise_for_status()  # Raise an error for bad status codes
+            
+            # Create a temporary file to store the model
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pth") as tf_model:
+                tf_model.write(response.content)
+                model_path_temp = tf_model.name
+            
+            # Load the model
+            st.info("Loading U-Net with pretrained weights...")
+            model = UNet3D(in_channels=param_in_channels, out_channels=param_out_classes, 
+                          base_features=param_base_features)
+            model.load_state_dict(torch.load(model_path_temp, map_location=st.session_state.device))
+            os.remove(model_path_temp)  # Clean up temp file
+            model.to(st.session_state.device).eval()
+            st.session_state.model_loaded = model
+            st.success("Pretrained model loaded successfully!")
+            
+        except Exception as e:
+            st.error(f"Failed to load pretrained model: {e}")
+            st.exception(e)
+            
 st.sidebar.markdown(f"--- \nRunning on: **{st.session_state.device}**")
 
 # --- NIfTI File Uploaders ---
