@@ -1,0 +1,8 @@
+streamlit
+torch
+nibabel
+numpy
+scikit-image
+scipy
+matplotlib
+pyinstaller 
