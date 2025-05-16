@@ -162,7 +162,7 @@ def labels_to_rgba(label_volume_dhw, num_total_classes, color_map_dict):
 
 # --- Streamlit App ---
 st.set_page_config(layout="wide", page_title="3D Brain Tumor Segmentation")
-st.title("🧠 3D Brain Tumor Segmentation")
+st.title("🧠 SegMed, a 3D Brain tumour segmentation website"
 st.markdown("""
 Upload a pre-trained 3D U-Net model and NIfTI modalities.
 The app performs segmentation and offers two download options:
