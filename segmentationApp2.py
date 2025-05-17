@@ -282,50 +282,40 @@ if 'language' not in st.session_state: st.session_state.language = "English"
 import streamlit as st
 
 # ===== BACKGROUND IMAGE SETUP =====
-def set_background():
-    st.markdown(
-        """
-        <style>
-            .stApp {
-                background-image: url("https://raw.githubusercontent.com/Vwoudka/segmed/main/.devcontainer/iStock-1452990966-modified-26cda7e8-4ee1-4a98-b681-f8a249f82c52-768x432.jpg");
-                background-size: contain;
-                background-position: center;
-                background-repeat: no-repeat;
-                background-attachment: fixed;
-            }
-            
-            /* Main content area */
-            .main .block-container {
-                background-color: rgba(255, 255, 255, 0.9);
-                border-radius: 10px;
-                padding: 2rem;
-                margin-top: 2rem;
-                margin-bottom: 2rem;
-            }
-            
-            /* Sidebar */
-            .sidebar .sidebar-content {
-                background-color: rgba(255, 255, 255, 0.95) !important;
-            }
-            
-            /* Make widgets visible */
-            .st-bb, .st-at, .st-ae, .st-af, .st-ag, .st-ah {
-                background-color: white;
-            }
-            
-            /* Text color */
-            .stMarkdown, .stText, .stNumberInput, .stFileUploader, .stButton {
-                color: #000000 !important;
-            }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-# ===== MAIN APP =====
+# Add this at the beginning of your main() function (before any other content)
 def main():
-    # Set background first
-    set_background()
+    # Set background image
+    def set_background_image():
+        st.markdown(
+            f"""
+            <style>
+                .stApp {{
+                    background-image: url("https://raw.githubusercontent.com/Vwoudka/segmed/main/.devcontainer/iStock-1452990966-modified-26cda7e8-4ee1-4a98-b681-f8a249f82c52-768x432.jpg");
+                    background-size: cover;
+                    background-position: center center;
+                    background-repeat: no-repeat;
+                    background-attachment: fixed;
+                }}
+                /* Add semi-transparent overlay to make text more readable */
+                .main .block-container {{
+                    background-color: rgba(255, 255, 255, 0.9);
+                    border-radius: 10px;
+                    padding: 2rem;
+                    margin-top: 2rem;
+                    margin-bottom: 2rem;
+                }}
+                /* Adjust sidebar transparency */
+                .sidebar .sidebar-content {{
+                    background-color: rgba(255, 255, 255, 0.95);
+                }}
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+    set_background_image()
+    
+    # Rest of your existing code...
     
     # Your existing app code continues here...
     st.title("Your App Title")
