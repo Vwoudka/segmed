@@ -586,33 +586,33 @@ if __name__ == "__main__":
         # Replace the legend section in your code with this:
 
 st.subheader(t["legend_header"])
-legend_html = """
-<div style='display: flex; flex-wrap: wrap; gap: 15px; margin-bottom:20px; padding: 10px; background-color: #f0f2f6; border-radius: 5px;'>
-    <div style='display:flex;align-items:center;'>
-        <div style='width:20px;height:20px;background-color:rgba(128,128,128,0.1);margin-right:8px;border: 1px dashed #aaa;'></div>
-        <span style='font-size:0.9em;color: black;'>{background_label}</span>
+    legend_html = """
+    <div style='display: flex; flex-wrap: wrap; gap: 15px; margin-bottom:20px; padding: 10px; background-color: #f0f2f6; border-radius: 5px;'>
+        <div style='display:flex;align-items:center;'>
+            <div style='width:20px;height:20px;background-color:rgba(128,128,128,0.1);margin-right:8px;border: 1px dashed #aaa;'></div>
+            <span style='font-size:0.9em;color: black;'>{background_label}</span>
+        </div>
+        <div style='display:flex;align-items:center;'>
+            <div style='width:20px;height:20px;background-color:rgba(255,0,0,1.00);margin-right:8px;border: 1px solid #555;'></div>
+            <span style='font-size:0.9em;color: black;'>{necrotic_label}</span>
+        </div>
+        <div style='display:flex;align-items:center;'>
+            <div style='width:20px;height:20px;background-color:rgba(0,255,0,1.00);margin-right:8px;border: 1px solid #555;'></div>
+            <span style='font-size:0.9em;color: black;'>{edema_label}</span>
+        </div>
+        <div style='display:flex;align-items:center;'>
+            <div style='width:20px;height:20px;background-color:rgba(255,255,0,1.00);margin-right:8px;border: 1px solid #555;'></div>
+            <span style='font-size:0.9em;color: black;'>{enhancing_label}</span>
+        </div>
     </div>
-    <div style='display:flex;align-items:center;'>
-        <div style='width:20px;height:20px;background-color:rgba(255,0,0,1.00);margin-right:8px;border: 1px solid #555;'></div>
-        <span style='font-size:0.9em;color: black;'>{necrotic_label}</span>
-    </div>
-    <div style='display:flex;align-items:center;'>
-        <div style='width:20px;height:20px;background-color:rgba(0,255,0,1.00);margin-right:8px;border: 1px solid #555;'></div>
-        <span style='font-size:0.9em;color: black;'>{edema_label}</span>
-    </div>
-    <div style='display:flex;align-items:center;'>
-        <div style='width:20px;height:20px;background-color:rgba(255,255,0,1.00);margin-right:8px;border: 1px solid #555;'></div>
-        <span style='font-size:0.9em;color: black;'>{enhancing_label}</span>
-    </div>
-</div>
-""".format(
-    background_label=t["labels"]["Background"],
-    necrotic_label=t["labels"]["Necrotic"],
-    edema_label=t["labels"]["Edema"],
-    enhancing_label=t["labels"]["Enhancing"]
-)
-
-st.markdown(legend_html, unsafe_allow_html=True)
+    """.format(
+        background_label=t["labels"]["Background"],
+        necrotic_label=t["labels"]["Necrotic"],
+        edema_label=t["labels"]["Edema"],
+        enhancing_label=t["labels"]["Enhancing"]
+    )
+    
+    st.markdown(legend_html, unsafe_allow_html=True)
         st.header(t["download_header"])
         col_dl1, col_dl2 = st.columns(2)
 
