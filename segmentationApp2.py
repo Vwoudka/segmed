@@ -677,7 +677,7 @@ if __name__ == "__main__":
                 )
                 # Add the new grid download option
 
-           if st.button("Generate High-Res Slice Grid"):
+            if st.button("Generate High-Res Slice Grid"):
                with st.spinner("Creating high-resolution grid image..."):
                     try:
                         # Create the grid
