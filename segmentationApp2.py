@@ -279,36 +279,60 @@ if 'current_date' not in st.session_state:
 if 'language' not in st.session_state: st.session_state.language = "English"
 
 
+import streamlit as st
+
+# ===== BACKGROUND IMAGE SETUP =====
+def set_background():
+    st.markdown(
+        """
+        <style>
+            .stApp {
+                background-image: url("https://raw.githubusercontent.com/Vwoudka/segmed/main/.devcontainer/iStock-1452990966-modified-26cda7e8-4ee1-4a98-b681-f8a249f82c52-768x432.jpg");
+                background-size: contain;
+                background-position: center;
+                background-repeat: no-repeat;
+                background-attachment: fixed;
+            }
+            
+            /* Main content area */
+            .main .block-container {
+                background-color: rgba(255, 255, 255, 0.9);
+                border-radius: 10px;
+                padding: 2rem;
+                margin-top: 2rem;
+                margin-bottom: 2rem;
+            }
+            
+            /* Sidebar */
+            .sidebar .sidebar-content {
+                background-color: rgba(255, 255, 255, 0.95) !important;
+            }
+            
+            /* Make widgets visible */
+            .st-bb, .st-at, .st-ae, .st-af, .st-ag, .st-ah {
+                background-color: white;
+            }
+            
+            /* Text color */
+            .stMarkdown, .stText, .stNumberInput, .stFileUploader, .stButton {
+                color: #000000 !important;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+# ===== MAIN APP =====
 def main():
-    # Alternative method using base64 encoding
-    def set_background():
-        st.markdown(
-            """
-            <style>
-                [data-testid="stAppViewContainer"] {
-                    background-image: url("data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ...");
-                    background-size: cover;
-                }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-    
-    # To get the base64 string:
-    # 1. Upload your image to https://www.base64-image.de/
-    # 2. Copy the base64 string and replace above
-    # Or use Python to encode:
-    """
-    import base64
-    with open(".devcontainer/your-image.jpg", "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read()).decode()
-    print(encoded_string)
-    """
-    
+    # Set background first
     set_background()
-    # Rest of your code...
+    
+    # Your existing app code continues here...
+    st.title("Your App Title")
+    # ... rest of your app ...
 
-
+if __name__ == "__main__":
+    main()
     # Create a sidebar container for the language selector
     with st.sidebar:
         # Language selector at the top of the sidebar
