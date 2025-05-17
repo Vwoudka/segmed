@@ -278,6 +278,42 @@ if 'current_date' not in st.session_state:
     st.session_state.current_date = datetime.now().strftime("%d %B %Y, %H:%M:%S") + " (Local Time)"
 if 'language' not in st.session_state: st.session_state.language = "English"
 
+def main():
+    # Set background image from GitHub
+    def set_background():
+        st.markdown(
+            f"""
+            <style>
+                .stApp {{
+                    background-image: url("https://raw.githubusercontent.com/Vwoudka/segmed/main/.devcontainer/iStock-1452990966-modified-26cda7e8-4ee1-4a98-b681-f8a249f82c52-768x432.jpg");
+                    background-size: cover;
+                    background-position: center;
+                    background-repeat: no-repeat;
+                    background-attachment: fixed;
+                }}
+                /* Add transparency to content areas */
+                .main .block-container {{
+                    background-color: rgba(255, 255, 255, 0.85);
+                    border-radius: 10px;
+                    padding: 2rem;
+                }}
+                /* Sidebar transparency */
+                .sidebar .sidebar-content {{
+                    background-color: rgba(255, 255, 255, 0.9) !important;
+                }}
+                /* Make sure text is readable */
+                .stMarkdown, .stText, .stNumberInput, .stFileUploader, .stButton {{
+                    color: #000000 !important;
+                }}
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+    
+    set_background()  # Call this at the start of main()
+    
+    # Rest of your existing code...
+
 # --- Streamlit App Layout ---
 def main():
     # Create a sidebar container for the language selector
