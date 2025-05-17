@@ -160,23 +160,24 @@ class UNet3D(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.base_features = base_features
-        
+        # Initial convolution block
         self.initial_conv = nn.Sequential(
             nn.Conv3d(in_channels, base_features, kernel_size=3, stride=1, padding=1, bias=False),
             nn.InstanceNorm3d(base_features), nn.ReLU(inplace=True)
-        
+        )
+        # Encoder path
         self.encoder1 = self._make_block(base_features, base_features, blocks=1)
         self.encoder2 = self._make_block(base_features, base_features * 2, blocks=1, stride=2)
         self.encoder3 = self._make_block(base_features * 2, base_features * 4, blocks=1, stride=2)
         self.encoder4 = self._make_block(base_features * 4, base_features * 8, blocks=1, stride=2)
-        
+        # Decoder path
         self.upconv3 = nn.ConvTranspose3d(base_features * 8, base_features * 4, kernel_size=2, stride=2)
         self.decoder3 = self._make_block(base_features * 4 * 2, base_features * 4, blocks=1) 
         self.upconv2 = nn.ConvTranspose3d(base_features * 4, base_features * 2, kernel_size=2, stride=2)
         self.decoder2 = self._make_block(base_features * 2 * 2, base_features * 2, blocks=1)
         self.upconv1 = nn.ConvTranspose3d(base_features * 2, base_features, kernel_size=2, stride=2)
         self.decoder1 = self._make_block(base_features * 2, base_features, blocks=1) 
-        
+        # Final convolution
         self.final_conv = nn.Conv3d(base_features, out_channels, kernel_size=1)
 
     def _conv_block(self, in_channels, out_channels, stride=1):
@@ -207,6 +208,7 @@ class UNet3D(nn.Module):
         d1 = torch.cat([d1, e1], dim=1); d1 = self.decoder1(d1)
         logits = self.final_conv(d1)
         return F.interpolate(logits, size=x.shape[2:], mode='trilinear', align_corners=False)
+
 
 # --- Data Preprocessing Function ---
 def load_nii_and_preprocess(file_path, is_label=False, target_hw_shape=TARGET_HW_SHAPE, slice_range=(START_SLICE, END_SLICE)):
