@@ -585,7 +585,9 @@ if __name__ == "__main__":
 
         # Replace the legend section in your code with this:
 
-st.subheader(t["legend_header"])
+    st.subheader(t["legend_header"])
+
+
     legend_html = """
     <div style='display: flex; flex-wrap: wrap; gap: 15px; margin-bottom:20px; padding: 10px; background-color: #f0f2f6; border-radius: 5px;'>
         <div style='display:flex;align-items:center;'>
