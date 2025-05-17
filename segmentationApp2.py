@@ -677,6 +677,8 @@ if __name__ == "__main__":
                 )
                 # Add the new grid download option
     st.subheader("3. High-Resolution Slice Grid (13x10)")
+               # Add the new grid download option
+    st.subheader("3. High-Resolution Slice Grid (13x10)")
     if st.button("Generate High-Res Slice Grid"):
         with st.spinner("Creating high-resolution grid image..."):
             # Create the grid
