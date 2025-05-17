@@ -307,29 +307,6 @@ def main():
     
     set_background()
     # Rest of your code...
-        st.markdown(
-            f"""
-            <style>
-                .stApp {{
-                    background-image: url("https://github.com/Vwoudka/segmed/raw/main/.devcontainer/iStock-1452990966-modified-26cda7e8-4ee1-4a98-b681-f8a249f82c52-768x432.jpg");
-                    background-size: cover;
-                    background-position: center;
-                    background-repeat: no-repeat;
-                    background-attachment: fixed;
-                }}
-                /* Sidebar transparency */
-                .sidebar .sidebar-content {{
-                    background-color: rgba(255, 255, 255, 0.9) !important;
-                }}
-                /* Make sure text is readable */
-                .stMarkdown, .stText, .stNumberInput, .stFileUploader, .stButton {{
-                    color: #000000 !important;
-                }}
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
 
 
     # Create a sidebar container for the language selector
