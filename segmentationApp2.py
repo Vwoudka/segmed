@@ -75,7 +75,7 @@ TRANSLATIONS = {
             "Enhancing": "Enhancing Tumor"
         }
     },
-    "Spanish": {
+    "Español": {
         "title": "🧠 SegMed, un sitio web de segmentación 3D de tumores cerebrales",
         "description": """
         Suba un modelo U-Net 3D preentrenado y modalidades NIfTI.
@@ -113,7 +113,7 @@ TRANSLATIONS = {
             "Enhancing": "Tumor Reforzado"
         }
     },
-    "French": {
+    "Français": {
         "title": "🧠 SegMed, un site web de segmentation 3D de tumeurs cérébrales",
         "description": """
         Téléchargez un modèle U-Net 3D pré-entraîné et des modalités NIfTI.
