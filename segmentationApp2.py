@@ -616,7 +616,7 @@ if __name__ == "__main__":
     
     st.markdown(legend_html, unsafe_allow_html=True)
 st.header(t["download_header"])
-        col_dl1, col_dl2 = st.columns(2)
+col_dl1, col_dl2 = st.columns(2)
 
         with col_dl1:
             st.subheader(t["nifti_option"])
