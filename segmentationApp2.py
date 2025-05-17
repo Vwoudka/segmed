@@ -627,7 +627,7 @@ if __name__ == "__main__":
                 os.remove(tmp_nifti_download_path)
         
         # In your download options section where you have the PNG download button
-with col_dl2:
+        with col_dl2:
     st.subheader(t["png_option"])
     
     if st.button(t["prepare_png"]):
