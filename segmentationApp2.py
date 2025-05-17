@@ -628,63 +628,63 @@ if __name__ == "__main__":
         
         # In your download options section where you have the PNG download button
         with col_dl2:
-    st.subheader(t["png_option"])
-    
-    if st.button(t["prepare_png"]):
-        with st.spinner(f"Generating {TARGET_DEPTH} PNG slices for {st.session_state.patient_name}..."):
-            try:
-                zip_buffer = io.BytesIO()
-                input_slices_hwd = st.session_state.input_for_vis_np 
-                rgba_slices_dhw4 = st.session_state.prediction_rgba_dhw4
-                label_slices_dhw = st.session_state.prediction_label_dhw
-
-                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                    for slice_idx_png in range(TARGET_DEPTH):
-                        current_input_slice_hw = input_slices_hwd[:, :, slice_idx_png]
-                        current_rgba_slice_hw4 = rgba_slices_dhw4[slice_idx_png, :, :, :]
-                        current_label_slice_hw = label_slices_dhw[slice_idx_png, :, :]
-
-                        present_label_names = []
-                        for label_val, label_name_str in SEGMENTATION_LABELS_DICT.items():
-                            if np.any(current_label_slice_hw == label_val):
-                                present_label_names.append(label_name_str)
+            st.subheader(t["png_option"])
+            
+            if st.button(t["prepare_png"]):
+                with st.spinner(f"Generating {TARGET_DEPTH} PNG slices for {st.session_state.patient_name}..."):
+                    try:
+                        zip_buffer = io.BytesIO()
+                        input_slices_hwd = st.session_state.input_for_vis_np 
+                        rgba_slices_dhw4 = st.session_state.prediction_rgba_dhw4
+                        label_slices_dhw = st.session_state.prediction_label_dhw
+        
+                        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                            for slice_idx_png in range(TARGET_DEPTH):
+                                current_input_slice_hw = input_slices_hwd[:, :, slice_idx_png]
+                                current_rgba_slice_hw4 = rgba_slices_dhw4[slice_idx_png, :, :, :]
+                                current_label_slice_hw = label_slices_dhw[slice_idx_png, :, :]
+        
+                                present_label_names = []
+                                for label_val, label_name_str in SEGMENTATION_LABELS_DICT.items():
+                                    if np.any(current_label_slice_hw == label_val):
+                                        present_label_names.append(label_name_str)
+                                
+                                labels_present_str = ", ".join(present_label_names) if present_label_names else "None"
+                                
+                                fig_png, ax_png = plt.subplots(figsize=(6,6))
+                                ax_png.imshow(current_input_slice_hw, cmap='gray', aspect='equal')
+                                ax_png.imshow(current_rgba_slice_hw4, aspect='equal')
+                                ax_png.axis('off')
+                                
+                                title_str = (f"Patient: {st.session_state.patient_name}\n"
+                                            f"Slice: {slice_idx_png + START_SLICE} (Original Index)\n"
+                                            f"Labels Present: {labels_present_str}")
+                                ax_png.set_title(title_str, fontsize=10)
+                                
+                                png_buf = io.BytesIO()
+                                fig_png.savefig(png_buf, format='png', dpi=100, bbox_inches='tight')
+                                plt.close(fig_png)
+                                png_buf.seek(0)
+                                
+                                safe_labels_str = "_".join(labels_present_str.split(", "))
+                                png_filename = f"{st.session_state.patient_name}_slice_{slice_idx_png + START_SLICE:03d}_{safe_labels_str or 'no_labels'}.png"
+                                zf.writestr(png_filename, png_buf.getvalue())
                         
-                        labels_present_str = ", ".join(present_label_names) if present_label_names else "None"
+                        zip_buffer.seek(0)
+                        st.session_state.zip_buffer_pngs = zip_buffer
+                        st.success(f"PNG ZIP archive ready for patient {st.session_state.patient_name}!")
                         
-                        fig_png, ax_png = plt.subplots(figsize=(6,6))
-                        ax_png.imshow(current_input_slice_hw, cmap='gray', aspect='equal')
-                        ax_png.imshow(current_rgba_slice_hw4, aspect='equal')
-                        ax_png.axis('off')
-                        
-                        title_str = (f"Patient: {st.session_state.patient_name}\n"
-                                    f"Slice: {slice_idx_png + START_SLICE} (Original Index)\n"
-                                    f"Labels Present: {labels_present_str}")
-                        ax_png.set_title(title_str, fontsize=10)
-                        
-                        png_buf = io.BytesIO()
-                        fig_png.savefig(png_buf, format='png', dpi=100, bbox_inches='tight')
-                        plt.close(fig_png)
-                        png_buf.seek(0)
-                        
-                        safe_labels_str = "_".join(labels_present_str.split(", "))
-                        png_filename = f"{st.session_state.patient_name}_slice_{slice_idx_png + START_SLICE:03d}_{safe_labels_str or 'no_labels'}.png"
-                        zf.writestr(png_filename, png_buf.getvalue())
-                
-                zip_buffer.seek(0)
-                st.session_state.zip_buffer_pngs = zip_buffer
-                st.success(f"PNG ZIP archive ready for patient {st.session_state.patient_name}!")
-                
-            except Exception as e:
-                st.error(f"Error generating PNG slices: {str(e)}")
-                st.exception(e)
-
-    if 'zip_buffer_pngs' in st.session_state and st.session_state.zip_buffer_pngs is not None:
-        st.download_button(
-            label=t["download_png"].format(st.session_state.patient_name),
-            data=st.session_state.zip_buffer_pngs,
-            file_name=f"{st.session_state.patient_name}_segmentation_slices.zip",
-            mime="application/zip"
-        )
+                    except Exception as e:
+                        st.error(f"Error generating PNG slices: {str(e)}")
+                        st.exception(e)
+        
+            if 'zip_buffer_pngs' in st.session_state and st.session_state.zip_buffer_pngs is not None:
+                st.download_button(
+                    label=t["download_png"].format(st.session_state.patient_name),
+                    data=st.session_state.zip_buffer_pngs,
+                    file_name=f"{st.session_state.patient_name}_segmentation_slices.zip",
+                    mime="application/zip"
+                )
           
                 
 
