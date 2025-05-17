@@ -69,7 +69,7 @@ TRANSLATIONS = {
         "nifti_option": "1. NIfTI Label Map",
         "download_nifti": "Download Label Segmentation (.nii.gz)",
         "png_option": "2. PNG Slices (Overlay)",
-        "prepare_png": "Prepare PNG Slices for Download (.zip)",
+        "prepare_png": "Prepare PNG Slices for Download ",
         "download_png": "Download PNG Slices for {} (.zip)",
         "labels": {
             "Background": "Background (Normal Tissue)",
@@ -107,7 +107,7 @@ TRANSLATIONS = {
         "nifti_option": "1. Mapa de Etiquetas NIfTI",
         "download_nifti": "Descargar Segmentación de Etiquetas (.nii.gz)",
         "png_option": "2. Rebanadas PNG (Superposición)",
-        "prepare_png": "Preparar Rebanadas PNG para Descargar (.zip)",
+        "prepare_png": "Preparar Rebanadas PNG para Descargar ",
         "download_png": "Descargar Rebanadas PNG para {} (.zip)",
         "labels": {
             "Background": "Fondo (Tejido Normal)",
@@ -145,7 +145,7 @@ TRANSLATIONS = {
         "nifti_option": "1. Carte d'Étiquettes NIfTI",
         "download_nifti": "Télécharger Segmentation d'Étiquettes (.nii.gz)",
         "png_option": "2. Tranches PNG (Superposition)",
-        "prepare_png": "Préparer Tranches PNG pour Téléchargement (.zip)",
+        "prepare_png": "Préparer Tranches PNG pour Téléchargement ",
         "download_png": "Télécharger Tranches PNG pour {} (.zip)",
         "labels": {
             "Background": "Arrière-plan (Tissu Normal)",
@@ -583,27 +583,36 @@ if __name__ == "__main__":
                 st.pyplot(fig)
                 plt.close(fig) 
 
-        st.subheader(t["legend_header"])
-        legend_html = "<div style='display: flex; flex-wrap: wrap; gap: 15px; margin-bottom:20px; padding: 10px; background-color: #f0f2f6; border-radius: 5px;'>"
-        for name, color in zip(["Background", "Necrotic", "Edema", "Enhancing"], 
-                              [(0,0,0,0), (255,0,0,255), (0,255,0,255), (255,255,0,255)]):
-            label_name = t["labels"][name]
-            r,g,b,a = color
-            c_disp = f"rgba({r},{g},{b},{a/255:.2f})"
-            b_style = "border: 1px solid #555;"
-            text_color = "color: black;"
-            if a==0 and name=="Background":
-                c_disp="rgba(128,128,128,0.1)"
-                b_style="border: 1px dashed #aaa;"
-            legend_html += f"""
-            <div style='display:flex;align-items:center;'>
-                <div style='width:20px;height:20px;background-color:{c_disp};margin-right:8px;{b_style}'></div>
-                <span style='font-size:0.9em;{text_color}'>{label_name}</span>
-            </div>
-            """
-        legend_html += "</div>"
-        st.markdown(legend_html, unsafe_allow_html=True)
+        # Replace the legend section in your code with this:
 
+st.subheader(t["legend_header"])
+legend_html = """
+<div style='display: flex; flex-wrap: wrap; gap: 15px; margin-bottom:20px; padding: 10px; background-color: #f0f2f6; border-radius: 5px;'>
+    <div style='display:flex;align-items:center;'>
+        <div style='width:20px;height:20px;background-color:rgba(128,128,128,0.1);margin-right:8px;border: 1px dashed #aaa;'></div>
+        <span style='font-size:0.9em;color: black;'>{background_label}</span>
+    </div>
+    <div style='display:flex;align-items:center;'>
+        <div style='width:20px;height:20px;background-color:rgba(255,0,0,1.00);margin-right:8px;border: 1px solid #555;'></div>
+        <span style='font-size:0.9em;color: black;'>{necrotic_label}</span>
+    </div>
+    <div style='display:flex;align-items:center;'>
+        <div style='width:20px;height:20px;background-color:rgba(0,255,0,1.00);margin-right:8px;border: 1px solid #555;'></div>
+        <span style='font-size:0.9em;color: black;'>{edema_label}</span>
+    </div>
+    <div style='display:flex;align-items:center;'>
+        <div style='width:20px;height:20px;background-color:rgba(255,255,0,1.00);margin-right:8px;border: 1px solid #555;'></div>
+        <span style='font-size:0.9em;color: black;'>{enhancing_label}</span>
+    </div>
+</div>
+""".format(
+    background_label=t["labels"]["Background"],
+    necrotic_label=t["labels"]["Necrotic"],
+    edema_label=t["labels"]["Edema"],
+    enhancing_label=t["labels"]["Enhancing"]
+)
+
+st.markdown(legend_html, unsafe_allow_html=True)
         st.header(t["download_header"])
         col_dl1, col_dl2 = st.columns(2)
 
