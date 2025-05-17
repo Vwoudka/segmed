@@ -294,7 +294,7 @@ def main():
                     background-size: contain;
                     background-position: center center;
                     background-repeat: no-repeat;
-                    background-attachment: fixed;
+                    background-attachment: scroll;
                 }}
                 /* Add semi-transparent overlay to make text more readable */
                 .main .block-container {{
