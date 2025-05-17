@@ -627,64 +627,150 @@ if __name__ == "__main__":
                 os.remove(tmp_nifti_download_path)
         
         # In your download options section where you have the PNG download button
-        with col_dl2:
-            st.subheader(t["png_option"])
-            
-            if st.button(t["prepare_png"]):
-                with st.spinner(f"Generating {TARGET_DEPTH} PNG slices for {st.session_state.patient_name}..."):
+        # In your download options section (replace the existing code)
+with col_dl2:
+    st.subheader(t["png_option"])
+    
+    # Add format selection
+    png_format = st.radio(
+        "Select output format:",
+        ["Individual Slices (ZIP)", "13×10 Grid Image"],
+        key="png_format_selector"
+    )
+    
+    if st.button(t["prepare_png"]):
+        if png_format == "Individual Slices (ZIP)":
+            with st.spinner(f"Generating {TARGET_DEPTH} PNG slices for {st.session_state.patient_name}..."):
+                try:
+                    zip_buffer = io.BytesIO()
+                    input_slices_hwd = st.session_state.input_for_vis_np 
+                    rgba_slices_dhw4 = st.session_state.prediction_rgba_dhw4
+                    label_slices_dhw = st.session_state.prediction_label_dhw
+
+                    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                        for slice_idx_png in range(TARGET_DEPTH):
+                            current_input_slice_hw = input_slices_hwd[:, :, slice_idx_png]
+                            current_rgba_slice_hw4 = rgba_slices_dhw4[slice_idx_png, :, :, :]
+                            current_label_slice_hw = label_slices_dhw[slice_idx_png, :, :]
+
+                            present_label_names = []
+                            for label_val, label_name_str in SEGMENTATION_LABELS_DICT.items():
+                                if np.any(current_label_slice_hw == label_val):
+                                    present_label_names.append(label_name_str)
+                            
+                            labels_present_str = ", ".join(present_label_names) if present_label_names else "None"
+                            
+                            fig_png, ax_png = plt.subplots(figsize=(6,6))
+                            ax_png.imshow(current_input_slice_hw, cmap='gray', aspect='equal')
+                            ax_png.imshow(current_rgba_slice_hw4, aspect='equal')
+                            ax_png.axis('off')
+                            
+                            title_str = (f"Patient: {st.session_state.patient_name}\n"
+                                        f"Slice: {slice_idx_png + START_SLICE} (Original Index)\n"
+                                        f"Labels Present: {labels_present_str}")
+                            ax_png.set_title(title_str, fontsize=10)
+                            
+                            png_buf = io.BytesIO()
+                            fig_png.savefig(png_buf, format='png', dpi=100, bbox_inches='tight')
+                            plt.close(fig_png)
+                            png_buf.seek(0)
+                            
+                            safe_labels_str = "_".join(labels_present_str.split(", "))
+                            png_filename = f"{st.session_state.patient_name}_slice_{slice_idx_png + START_SLICE:03d}_{safe_labels_str or 'no_labels'}.png"
+                            zf.writestr(png_filename, png_buf.getvalue())
+                    
+                    zip_buffer.seek(0)
+                    st.session_state.zip_buffer_pngs = zip_buffer
+                    st.session_state.png_format = "zip"
+                    st.success(f"PNG ZIP archive ready for patient {st.session_state.patient_name}!")
+                    
+                except Exception as e:
+                    st.error(f"Error generating PNG slices: {str(e)}")
+                    st.exception(e)
+
+        elif png_format == "13×10 Grid Image":
+            with st.spinner("Creating 13×10 grid image..."):
+                try:
+                    # Grid configuration
+                    SLICES_PER_ROW = 13
+                    ROWS = 10
+                    MARGIN = 5
+                    TITLE_HEIGHT = 60
+                    
+                    # Get data
+                    input_volume = st.session_state.input_for_vis_np  # (H,W,D)
+                    rgba_volume = st.session_state.prediction_rgba_dhw4  # (D,H,W,4)
+                    h, w = input_volume.shape[0], input_volume.shape[1]
+                    
+                    # Calculate grid dimensions
+                    grid_width = (w * SLICES_PER_ROW) + (MARGIN * (SLICES_PER_ROW - 1))
+                    grid_height = (h * ROWS) + (MARGIN * (ROWS - 1)) + TITLE_HEIGHT
+                    
+                    # Create blank image
+                    grid_img = Image.new('RGB', (grid_width, grid_height), color='white')
+                    draw = ImageDraw.Draw(grid_img)
+                    
+                    # Add title
                     try:
-                        zip_buffer = io.BytesIO()
-                        input_slices_hwd = st.session_state.input_for_vis_np 
-                        rgba_slices_dhw4 = st.session_state.prediction_rgba_dhw4
-                        label_slices_dhw = st.session_state.prediction_label_dhw
-        
-                        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                            for slice_idx_png in range(TARGET_DEPTH):
-                                current_input_slice_hw = input_slices_hwd[:, :, slice_idx_png]
-                                current_rgba_slice_hw4 = rgba_slices_dhw4[slice_idx_png, :, :, :]
-                                current_label_slice_hw = label_slices_dhw[slice_idx_png, :, :]
-        
-                                present_label_names = []
-                                for label_val, label_name_str in SEGMENTATION_LABELS_DICT.items():
-                                    if np.any(current_label_slice_hw == label_val):
-                                        present_label_names.append(label_name_str)
-                                
-                                labels_present_str = ", ".join(present_label_names) if present_label_names else "None"
-                                
-                                fig_png, ax_png = plt.subplots(figsize=(6,6))
-                                ax_png.imshow(current_input_slice_hw, cmap='gray', aspect='equal')
-                                ax_png.imshow(current_rgba_slice_hw4, aspect='equal')
-                                ax_png.axis('off')
-                                
-                                title_str = (f"Patient: {st.session_state.patient_name}\n"
-                                            f"Slice: {slice_idx_png + START_SLICE} (Original Index)\n"
-                                            f"Labels Present: {labels_present_str}")
-                                ax_png.set_title(title_str, fontsize=10)
-                                
-                                png_buf = io.BytesIO()
-                                fig_png.savefig(png_buf, format='png', dpi=100, bbox_inches='tight')
-                                plt.close(fig_png)
-                                png_buf.seek(0)
-                                
-                                safe_labels_str = "_".join(labels_present_str.split(", "))
-                                png_filename = f"{st.session_state.patient_name}_slice_{slice_idx_png + START_SLICE:03d}_{safe_labels_str or 'no_labels'}.png"
-                                zf.writestr(png_filename, png_buf.getvalue())
+                        font = ImageFont.truetype("arial.ttf", 24)
+                    except:
+                        font = ImageFont.load_default()
+                    
+                    title = f"Patient: {st.session_state.patient_name} - Slice Grid (Total: {TARGET_DEPTH} slices)"
+                    draw.text((10, 10), title, font=font, fill='black')
+                    
+                    # Add slices to grid
+                    for i in range(min(TARGET_DEPTH, SLICES_PER_ROW * ROWS)):
+                        row = i // SLICES_PER_ROW
+                        col = i % SLICES_PER_ROW
                         
-                        zip_buffer.seek(0)
-                        st.session_state.zip_buffer_pngs = zip_buffer
-                        st.success(f"PNG ZIP archive ready for patient {st.session_state.patient_name}!")
+                        x = col * (w + MARGIN)
+                        y = TITLE_HEIGHT + row * (h + MARGIN)
                         
-                    except Exception as e:
-                        st.error(f"Error generating PNG slices: {str(e)}")
-                        st.exception(e)
-        
-            if 'zip_buffer_pngs' in st.session_state and st.session_state.zip_buffer_pngs is not None:
-                st.download_button(
-                    label=t["download_png"].format(st.session_state.patient_name),
-                    data=st.session_state.zip_buffer_pngs,
-                    file_name=f"{st.session_state.patient_name}_segmentation_slices.zip",
-                    mime="application/zip"
-                )
+                        # Get slices
+                        input_slice = (input_volume[:, :, i] * 255).astype(np.uint8)
+                        seg_slice = rgba_volume[i, :, :, :]
+                        
+                        # Create composite
+                        bg = Image.fromarray(input_slice).convert('RGB')
+                        overlay = Image.fromarray(seg_slice).convert('RGBA')
+                        composite = Image.alpha_composite(bg.convert('RGBA'), overlay).convert('RGB')
+                        
+                        # Paste into grid
+                        grid_img.paste(composite, (x, y))
+                    
+                    # Save to buffer
+                    img_buffer = io.BytesIO()
+                    grid_img.save(img_buffer, format='PNG', quality=100)
+                    img_buffer.seek(0)
+                    
+                    st.session_state.grid_image_buffer = img_buffer
+                    st.session_state.png_format = "grid"
+                    st.success("13×10 grid image created successfully!")
+                    
+                    # Show preview
+                    st.image(grid_img, caption="Preview of 13×10 Grid", use_column_width=True)
+                    
+                except Exception as e:
+                    st.error(f"Error creating grid image: {str(e)}")
+                    st.exception(e)
+
+    # Download buttons
+    if 'png_format' in st.session_state:
+        if st.session_state.png_format == "zip" and 'zip_buffer_pngs' in st.session_state:
+            st.download_button(
+                label=t["download_png"].format(st.session_state.patient_name),
+                data=st.session_state.zip_buffer_pngs,
+                file_name=f"{st.session_state.patient_name}_segmentation_slices.zip",
+                mime="application/zip"
+            )
+        elif st.session_state.png_format == "grid" and 'grid_image_buffer' in st.session_state:
+            st.download_button(
+                label="Download 13×10 Grid Image",
+                data=st.session_state.grid_image_buffer,
+                file_name=f"{st.session_state.patient_name}_slice_grid.png",
+                mime="image/png"
+            )
           
                 
 
