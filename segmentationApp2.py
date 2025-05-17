@@ -280,7 +280,34 @@ if 'language' not in st.session_state: st.session_state.language = "English"
 
 def main():
     # Set background image from GitHub
+def main():
+    # Alternative method using base64 encoding
     def set_background():
+        st.markdown(
+            """
+            <style>
+                [data-testid="stAppViewContainer"] {
+                    background-image: url("data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ...");
+                    background-size: cover;
+                }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+    
+    # To get the base64 string:
+    # 1. Upload your image to https://www.base64-image.de/
+    # 2. Copy the base64 string and replace above
+    # Or use Python to encode:
+    """
+    import base64
+    with open(".devcontainer/your-image.jpg", "rb") as image_file:
+        encoded_string = base64.b64encode(image_file.read()).decode()
+    print(encoded_string)
+    """
+    
+    set_background()
+    # Rest of your code...
         st.markdown(
             f"""
             <style>
