@@ -623,89 +623,99 @@ if __name__ == "__main__":
             if os.path.exists(tmp_nifti_download_path): 
                 os.remove(tmp_nifti_download_path)
         
-        with col_dl2:
-            st.subheader(t["png_option"])
-            if st.button(t["prepare_png"]):
-                with st.spinner(f"Generating {TARGET_DEPTH} PNG slices for {st.session_state.patient_name}..."):
-                    zip_buffer = io.BytesIO()
-                    input_slices_hwd = st.session_state.input_for_vis_np 
-                    rgba_slices_dhw4 = st.session_state.prediction_rgba_dhw4
-                    label_slices_dhw = st.session_state.prediction_label_dhw
+        # In your download options section where you have the PNG download button
+with col_dl2:
+    st.subheader(t["png_option"])
+    
+    # Add a radio button to choose between individual slices or grid
+    download_format = st.radio(
+        "Select download format:",
+        ["Individual Slices (ZIP)", "High-Res Grid (13x10)"],
+        key="png_format"
+    )
+    
+    if st.button(t["prepare_png"]):
+        if download_format == "Individual Slices (ZIP)":
+            with st.spinner(f"Generating {TARGET_DEPTH} PNG slices for {st.session_state.patient_name}..."):
+                zip_buffer = io.BytesIO()
+                input_slices_hwd = st.session_state.input_for_vis_np 
+                rgba_slices_dhw4 = st.session_state.prediction_rgba_dhw4
+                label_slices_dhw = st.session_state.prediction_label_dhw
 
-                    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED, False) as zf:
-                        for slice_idx_png in range(TARGET_DEPTH):
-                            current_input_slice_hw = input_slices_hwd[:, :, slice_idx_png]
-                            current_rgba_slice_hw4 = rgba_slices_dhw4[slice_idx_png, :, :, :]
-                            current_label_slice_hw = label_slices_dhw[slice_idx_png, :, :]
+                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED, False) as zf:
+                    for slice_idx_png in range(TARGET_DEPTH):
+                        current_input_slice_hw = input_slices_hwd[:, :, slice_idx_png]
+                        current_rgba_slice_hw4 = rgba_slices_dhw4[slice_idx_png, :, :, :]
+                        current_label_slice_hw = label_slices_dhw[slice_idx_png, :, :]
 
-                            present_label_names = []
-                            for label_val, label_name_str in SEGMENTATION_LABELS_DICT.items():
-                                if np.any(current_label_slice_hw == label_val):
-                                    present_label_names.append(label_name_str)
-                            
-                            labels_present_str = ", ".join(present_label_names) if present_label_names else "None"
-                            
-                            fig_png, ax_png = plt.subplots(figsize=(6,6))
-                            ax_png.imshow(current_input_slice_hw, cmap='gray', aspect='equal')
-                            ax_png.imshow(current_rgba_slice_hw4, aspect='equal')
-                            ax_png.axis('off')
-                            
-                            title_str = (f"Patient: {st.session_state.patient_name}\n"
-                                         f"Slice: {slice_idx_png + START_SLICE} (Original Index)\n"
-                                         f"Labels Present: {labels_present_str}")
-                            ax_png.set_title(title_str, fontsize=10)
-                            
-                            png_buf = io.BytesIO()
-                            fig_png.savefig(png_buf, format='png', dpi=100, bbox_inches='tight')
-                            plt.close(fig_png)
-                            png_buf.seek(0)
-                            
-                            safe_labels_str = labels_present_str.replace(', ', '_').replace(',', '_')
-                            png_filename = f"{st.session_state.patient_name}_slice_{slice_idx_png + START_SLICE:03d}_labels_{safe_labels_str}.png"
-                            zf.writestr(png_filename, png_buf.getvalue())
-                    zip_buffer.seek(0)
-                    st.session_state.zip_buffer_pngs = zip_buffer
-                    st.success(f"PNG ZIP archive ready for patient {st.session_state.patient_name}!")
+                        present_label_names = []
+                        for label_val, label_name_str in SEGMENTATION_LABELS_DICT.items():
+                            if np.any(current_label_slice_hw == label_val):
+                                present_label_names.append(label_name_str)
+                        
+                        labels_present_str = ", ".join(present_label_names) if present_label_names else "None"
+                        
+                        fig_png, ax_png = plt.subplots(figsize=(6,6))
+                        ax_png.imshow(current_input_slice_hw, cmap='gray', aspect='equal')
+                        ax_png.imshow(current_rgba_slice_hw4, aspect='equal')
+                        ax_png.axis('off')
+                        
+                        title_str = (f"Patient: {st.session_state.patient_name}\n"
+                                     f"Slice: {slice_idx_png + START_SLICE} (Original Index)\n"
+                                     f"Labels Present: {labels_present_str}")
+                        ax_png.set_title(title_str, fontsize=10)
+                        
+                        png_buf = io.BytesIO()
+                        fig_png.savefig(png_buf, format='png', dpi=100, bbox_inches='tight')
+                        plt.close(fig_png)
+                        png_buf.seek(0)
+                        
+                        safe_labels_str = labels_present_str.replace(', ', '_').replace(',', '_')
+                        png_filename = f"{st.session_state.patient_name}_slice_{slice_idx_png + START_SLICE:03d}_labels_{safe_labels_str}.png"
+                        zf.writestr(png_filename, png_buf.getvalue())
+                zip_buffer.seek(0)
+                st.session_state.zip_buffer_pngs = zip_buffer
+                st.success(f"PNG ZIP archive ready for patient {st.session_state.patient_name}!")
 
-            if 'zip_buffer_pngs' in st.session_state and st.session_state.zip_buffer_pngs is not None:
-                st.download_button(
-                    label=t["download_png"].format(st.session_state.patient_name),
-                    data=st.session_state.zip_buffer_pngs,
-                    file_name=f"{st.session_state.patient_name}_segmentation_slices.zip",
-                    mime="application/zip",
-                    on_click=lambda: st.session_state.pop('zip_buffer_pngs', None)
-                )
-                # Add the new grid download option
-
-            if st.button("Generate High-Res Slice Grid"):
-               with st.spinner("Creating high-resolution grid image..."):
-                    try:
-                        # Create the grid
-                        grid_img = create_slice_grid(
-                            st.session_state.input_for_vis_np,  # (H,W,D) input volume
-                            st.session_state.prediction_rgba_dhw4,  # (D,H,W,4) segmentation
-                            st.session_state.patient_name
+        elif download_format == "High-Res Grid (13x10)":
+            with st.spinner("Creating high-resolution grid image..."):
+                try:
+                    # Create the grid
+                    grid_img = create_slice_grid(
+                        st.session_state.input_for_vis_np,  # (H,W,D) input volume
+                        st.session_state.prediction_rgba_dhw4,  # (D,H,W,4) segmentation
+                        st.session_state.patient_name
+                    )
+                    
+                    if grid_img is not None:
+                        # Save to buffer
+                        img_buffer = io.BytesIO()
+                        grid_img.save(img_buffer, format='PNG', quality=100, dpi=(300, 300))
+                        img_buffer.seek(0)
+                        
+                        # Show preview
+                        st.image(grid_img, caption="Preview of Slice Grid", use_column_width=True)
+                        
+                        # Download button
+                        st.download_button(
+                            label="Download High-Res Grid (PNG)",
+                            data=img_buffer,
+                            file_name=f"{st.session_state.patient_name}_slice_grid.png",
+                            mime="image/png"
                         )
-                        
-                        if grid_img is not None:
-                            # Save to buffer
-                            img_buffer = io.BytesIO()
-                            grid_img.save(img_buffer, format='PNG', quality=100, dpi=(300, 300))
-                            img_buffer.seek(0)
-                            
-                            # Show preview
-                            st.image(grid_img, caption="Preview of Slice Grid", use_column_width=True)
-                            
-                            # Download button
-                            st.download_button(
-                                label="Download High-Res Grid (PNG)",
-                                data=img_buffer,
-                                file_name=f"{st.session_state.patient_name}_slice_grid.png",
-                                mime="image/png"
-                            )
-                        
-                    except Exception as e:
-                        st.error(f"Failed to generate slice grid: {str(e)}")
+                    
+                except Exception as e:
+                    st.error(f"Failed to generate slice grid: {str(e)}")
+
+    if 'zip_buffer_pngs' in st.session_state and st.session_state.zip_buffer_pngs is not None and download_format == "Individual Slices (ZIP)":
+        st.download_button(
+            label=t["download_png"].format(st.session_state.patient_name),
+            data=st.session_state.zip_buffer_pngs,
+            file_name=f"{st.session_state.patient_name}_segmentation_slices.zip",
+            mime="application/zip",
+            on_click=lambda: st.session_state.pop('zip_buffer_pngs', None)
+        )
+
           
                 
 
