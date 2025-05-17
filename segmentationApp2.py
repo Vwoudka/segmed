@@ -530,4 +530,41 @@ def main():
                                 if np.any(current_label_slice_hw == label_val):
                                     present_label_names.append(label_name_str)
                             
-                           
+                            labels_present_str = ", ".join(present_label_names) if present_label_names else "None"
+                            
+                            fig_png, ax_png = plt.subplots(figsize=(6,6))
+                            ax_png.imshow(current_input_slice_hw, cmap='gray', aspect='equal')
+                            ax_png.imshow(current_rgba_slice_hw4, aspect='equal')
+                            ax_png.axis('off')
+                            
+                            title_str = (f"Patient: {st.session_state.patient_name}\n"
+                                         f"Slice: {slice_idx_png + START_SLICE} (Original Index)\n"
+                                         f"Labels Present: {labels_present_str}")
+                            ax_png.set_title(title_str, fontsize=10)
+                            
+                            png_buf = io.BytesIO()
+                            fig_png.savefig(png_buf, format='png', dpi=100, bbox_inches='tight')
+                            plt.close(fig_png)
+                            png_buf.seek(0)
+                            
+                            safe_labels_str = labels_present_str.replace(', ', '_').replace(',', '_')
+                            png_filename = f"{st.session_state.patient_name}_slice_{slice_idx_png + START_SLICE:03d}_labels_{safe_labels_str}.png"
+                            zf.writestr(png_filename, png_buf.getvalue())
+                    zip_buffer.seek(0)
+                    st.session_state.zip_buffer_pngs = zip_buffer
+                    st.success(f"PNG ZIP archive ready for patient {st.session_state.patient_name}!")
+
+            if 'zip_buffer_pngs' in st.session_state and st.session_state.zip_buffer_pngs is not None:
+                st.download_button(
+                    label=t["download_png"].format(st.session_state.patient_name),
+                    data=st.session_state.zip_buffer_pngs,
+                    file_name=f"{st.session_state.patient_name}_segmentation_slices.zip",
+                    mime="application/zip",
+                    on_click=lambda: st.session_state.pop('zip_buffer_pngs', None)
+                )
+
+    st.markdown("---")
+    st.markdown(f"Timestamp: {st.session_state.current_date}")
+
+if __name__ == "__main__":
+    main()
