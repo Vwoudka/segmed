@@ -46,7 +46,7 @@ SEGMENTATION_LABELS_DISPLAY_HTML = {
 
 st.logo(
     LOGO_URL_LARGE,
-    link="https://github.com/Vwoudka/segmed/raw/main/.devcontainer/segmed.png",
+    link="https://raw.githubusercontent.com/Vwoudka/segmed/main/.devcontainer/segmed.png",
     icon_image=LOGO_URL_SMALL,
 )
 
