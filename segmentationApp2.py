@@ -278,8 +278,7 @@ if 'current_date' not in st.session_state:
     st.session_state.current_date = datetime.now().strftime("%d %B %Y, %H:%M:%S") + " (Local Time)"
 if 'language' not in st.session_state: st.session_state.language = "English"
 
-def main():
-    # Set background image from GitHub
+
 def main():
     # Alternative method using base64 encoding
     def set_background():
