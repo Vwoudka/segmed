@@ -291,12 +291,6 @@ def main():
                     background-repeat: no-repeat;
                     background-attachment: fixed;
                 }}
-                /* Add transparency to content areas */
-                .main .block-container {{
-                    background-color: rgba(255, 255, 255, 0.85);
-                    border-radius: 10px;
-                    padding: 2rem;
-                }}
                 /* Sidebar transparency */
                 .sidebar .sidebar-content {{
                     background-color: rgba(255, 255, 255, 0.9) !important;
