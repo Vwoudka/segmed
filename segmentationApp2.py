@@ -309,13 +309,9 @@ def main():
             """,
             unsafe_allow_html=True
         )
-    
-    set_background()  # Call this at the start of main()
-    
-    # Rest of your existing code...
 
-# --- Streamlit App Layout ---
-def main():
+
+
     # Create a sidebar container for the language selector
     with st.sidebar:
         # Language selector at the top of the sidebar
