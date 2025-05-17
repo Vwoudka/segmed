@@ -41,7 +41,7 @@ SEGMENTATION_LABELS_DICT = {
 # --- Translation Dictionary ---
 TRANSLATIONS = {
     "English": {
-        "title": "🧠 SegMed, a 3D Brain tumour segmentation website",
+        "title": "3D Brain tumour segmentation website",
         "description": """
         Upload a pre-trained 3D U-Net model and NIfTI modalities.
         The app performs segmentation and offers two download options:
@@ -79,7 +79,7 @@ TRANSLATIONS = {
         }
     },
     "Español": {
-        "title": "🧠 SegMed, un sitio web de segmentación 3D de tumores cerebrales",
+        "title": "Sitio web de segmentación 3D de tumores cerebrales",
         "description": """
         Suba un modelo U-Net 3D preentrenado y modalidades NIfTI.
         La aplicación realiza la segmentación y ofrece dos opciones de descarga:
@@ -117,7 +117,7 @@ TRANSLATIONS = {
         }
     },
     "Français": {
-        "title": "🧠 SegMed, un site web de segmentation 3D de tumeurs cérébrales",
+        "title": "Un site web de segmentation 3D de tumeurs cérébrales",
         "description": """
         Téléchargez un modèle U-Net 3D pré-entraîné et des modalités NIfTI.
         L'application effectue la segmentation et propose deux options de téléchargement :
@@ -380,7 +380,7 @@ def main():
     # Rest of your existing code...
     
     # Your existing app code continues here...
-    st.title("Your App Title")
+    st.title("    SegMed")
     # ... rest of your app ...
 
 if __name__ == "__main__":
