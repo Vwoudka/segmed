@@ -785,7 +785,7 @@ with col_dl2:
                     mime="image/png"
                 )
         else:
-        st.info("PNG slices will be available after running segmentation")
+            st.info("PNG slices will be available after running segmentation")
           
                 
 
