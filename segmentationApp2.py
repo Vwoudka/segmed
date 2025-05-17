@@ -280,26 +280,36 @@ if 'language' not in st.session_state: st.session_state.language = "English"
 
 # --- Streamlit App Layout ---
 def main():
-    # Language selection at the top
-    col1, col2, col3 = st.columns([6, 1, 1])
-    with col1:
-        st.title(TRANSLATIONS[st.session_state.language]["title"])
-    with col2:
-        st.session_state.language = st.selectbox("", list(TRANSLATIONS.keys()), index=list(TRANSLATIONS.keys()).index(st.session_state.language))
-    with col3:
-        st.markdown("[<img src='https://github.githubassets.com/favicons/favicon.png' width='30'>](https://github.com/Vwoudka/segmed)", unsafe_allow_html=True)
+    # Create a sidebar container for the language selector
+    with st.sidebar:
+        # Language selector at the top of the sidebar
+        st.session_state.language = st.selectbox(
+            "Language", 
+            list(TRANSLATIONS.keys()), 
+            index=list(TRANSLATIONS.keys()).index(st.session_state.language),
+            key="language_selector"
+        )
     
     # Get current translations
     t = TRANSLATIONS[st.session_state.language]
     
+    # Main title and GitHub link
+    col1, col2 = st.columns([6, 1])
+    with col1:
+        st.title(t["title"])
+    with col2:
+        st.markdown("[<img src='https://github.githubassets.com/favicons/favicon.png' width='30'>](https://github.com/Vwoudka/segmed)", unsafe_allow_html=True)
+    
     st.markdown(t["description"])
     
-    # --- Sidebar ---
+    # --- Rest of your existing sidebar content ---
     st.sidebar.header(t["sidebar_header"])
     st.sidebar.text_input(t["patient_id"], value=st.session_state.patient_name, key="patient_name_input_key", 
                           on_change=lambda: setattr(st.session_state, 'patient_name', st.session_state.patient_name_input_key))
 
     st.sidebar.subheader(t["unet_config"])
+    # ... rest of your existing code ...
+
     param_in_channels = st.sidebar.number_input(t["input_channels"], min_value=1, value=DEFAULT_IN_CHANNELS, step=1, key="param_in_c")
     param_out_classes = st.sidebar.number_input(t["output_classes"], min_value=1, value=DEFAULT_OUT_CLASSES, step=1, key="param_out_cls")
     param_base_features = st.sidebar.number_input(t["base_features"], min_value=8, value=DEFAULT_BASE_FEATURES, step=16, key="param_base_f")
