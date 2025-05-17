@@ -44,6 +44,12 @@ SEGMENTATION_LABELS_DISPLAY_HTML = {
     "Enhancing Tumor": LABEL_TO_RGBA.get(3, (0,0,0,0)),
 }
 
+st.logo(
+    LOGO_URL_LARGE,
+    link="https://github.com/Vwoudka/segmed/raw/main/.devcontainer/segmed.png",
+    icon_image=LOGO_URL_SMALL,
+)
+
 # --- 3D U-Net Model Definition ---
 class UNet3D(nn.Module):
     def __init__(self, in_channels=DEFAULT_IN_CHANNELS, out_channels=DEFAULT_OUT_CLASSES, base_features=DEFAULT_BASE_FEATURES):
