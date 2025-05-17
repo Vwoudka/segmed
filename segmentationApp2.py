@@ -618,24 +618,24 @@ if __name__ == "__main__":
 st.header(t["download_header"])
 col_dl1, col_dl2 = st.columns(2)
 
-        with col_dl1:
-            st.subheader(t["nifti_option"])
-            data_to_save_nifti = np.transpose(st.session_state.prediction_label_dhw, (1,2,0)).astype(np.uint8)
-            nifti_img_out = nib.Nifti1Image(data_to_save_nifti, st.session_state.output_affine, st.session_state.output_header)
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".nii.gz") as tmp_nifti_download_file:
-                nib.save(nifti_img_out, tmp_nifti_download_file.name)
-                tmp_nifti_download_path = tmp_nifti_download_file.name
+with col_dl1:
+    st.subheader(t["nifti_option"])
+    data_to_save_nifti = np.transpose(st.session_state.prediction_label_dhw, (1,2,0)).astype(np.uint8)
+    nifti_img_out = nib.Nifti1Image(data_to_save_nifti, st.session_state.output_affine, st.session_state.output_header)
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".nii.gz") as tmp_nifti_download_file:
+        nib.save(nifti_img_out, tmp_nifti_download_file.name)
+        tmp_nifti_download_path = tmp_nifti_download_file.name
 
-            with open(tmp_nifti_download_path, "rb") as fp:
-                st.download_button(
-                    label=t["download_nifti"],
-                    data=fp.read(), 
-                    file_name=f"{st.session_state.patient_name}_segmentation_labels.nii.gz",
-                    mime="application/gzip"
-                )
-            if os.path.exists(tmp_nifti_download_path): 
-                os.remove(tmp_nifti_download_path)
+    with open(tmp_nifti_download_path, "rb") as fp:
+        st.download_button(
+            label=t["download_nifti"],
+            data=fp.read(), 
+            file_name=f"{st.session_state.patient_name}_segmentation_labels.nii.gz",
+            mime="application/gzip"
+        )
+    if os.path.exists(tmp_nifti_download_path): 
+        os.remove(tmp_nifti_download_path)
         
         # In your download options section where you have the PNG download button
         # In your download options section (replace the existing code)
