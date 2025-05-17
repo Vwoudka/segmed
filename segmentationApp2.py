@@ -676,33 +676,37 @@ if __name__ == "__main__":
                     on_click=lambda: st.session_state.pop('zip_buffer_pngs', None)
                 )
                 # Add the new grid download option
-    st.subheader("3. High-Resolution Slice Grid (13x10)")
-               # Add the new grid download option
-    st.subheader("3. High-Resolution Slice Grid (13x10)")
-    if st.button("Generate High-Res Slice Grid"):
+
+            if st.button("Generate High-Res Slice Grid"):
         with st.spinner("Creating high-resolution grid image..."):
-            # Create the grid
-            grid_img = create_slice_grid(
-                st.session_state.input_for_vis_np,  # (H,W,D) input volume
-                st.session_state.prediction_rgba_dhw4,  # (D,H,W,4) segmentation
-                st.session_state.patient_name
-            )
-            
-            # Save to buffer
-            img_buffer = io.BytesIO()
-            grid_img.save(img_buffer, format='PNG', quality=100, dpi=(300, 300))
-            img_buffer.seek(0)
-            
-            # Show preview
-            st.image(grid_img, caption="Preview of Slice Grid", use_column_width=True)
-            
-            # Download button
-            st.download_button(
-                label="Download High-Res Grid (PNG)",
-                data=img_buffer,
-                file_name=f"{st.session_state.patient_name}_slice_grid.png",
-                mime="image/png"
-            )
+            try:
+                # Create the grid
+                grid_img = create_slice_grid(
+                    st.session_state.input_for_vis_np,  # (H,W,D) input volume
+                    st.session_state.prediction_rgba_dhw4,  # (D,H,W,4) segmentation
+                    st.session_state.patient_name
+                )
+                
+                if grid_img is not None:
+                    # Save to buffer
+                    img_buffer = io.BytesIO()
+                    grid_img.save(img_buffer, format='PNG', quality=100, dpi=(300, 300))
+                    img_buffer.seek(0)
+                    
+                    # Show preview
+                    st.image(grid_img, caption="Preview of Slice Grid", use_column_width=True)
+                    
+                    # Download button
+                    st.download_button(
+                        label="Download High-Res Grid (PNG)",
+                        data=img_buffer,
+                        file_name=f"{st.session_state.patient_name}_slice_grid.png",
+                        mime="image/png"
+                    )
+                
+            except Exception as e:
+                st.error(f"Failed to generate slice grid: {str(e)}")
+  
         
 
     st.markdown("---")
