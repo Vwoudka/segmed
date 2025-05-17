@@ -269,6 +269,65 @@ def labels_to_rgba(label_volume_dhw, num_total_classes, color_map_dict):
         mask = (label_volume_dhw == class_idx)
         rgba_volume[mask] = color
     return rgba_volume
+def create_slice_grid(input_volume, rgba_volume, patient_name):
+    """
+    Creates a high-resolution grid image of all slices in a 13x10 layout
+    Args:
+        input_volume: (H,W,D) numpy array of input slices
+        rgba_volume: (D,H,W,4) numpy array of RGBA segmentations
+        patient_name: Patient name for title
+    Returns:
+        PIL Image object of the grid
+    """
+    # Grid configuration
+    SLICES_PER_ROW = 13
+    ROWS = 10
+    MARGIN = 5  # White space between slices
+    TITLE_HEIGHT = 60  # Space for title
+    
+    # Get dimensions
+    h, w = input_volume.shape[0], input_volume.shape[1]
+    total_slices = input_volume.shape[2]
+    
+    # Calculate grid dimensions
+    grid_width = (w * SLICES_PER_ROW) + (MARGIN * (SLICES_PER_ROW - 1))
+    grid_height = (h * ROWS) + (MARGIN * (ROWS - 1)) + TITLE_HEIGHT
+    
+    # Create blank white image
+    grid_img = Image.new('RGB', (grid_width, grid_height), color='white')
+    draw = ImageDraw.Draw(grid_img)
+    
+    # Add title
+    try:
+        font = ImageFont.truetype("arial.ttf", 24)
+    except:
+        font = ImageFont.load_default()
+    
+    title = f"Patient: {patient_name} - All Slices (Total: {total_slices})"
+    draw.text((10, 10), title, font=font, fill='black')
+    
+    # Composite each slice into the grid
+    for i in range(min(total_slices, SLICES_PER_ROW * ROWS)):
+        row = i // SLICES_PER_ROW
+        col = i % SLICES_PER_ROW
+        
+        # Calculate position
+        x = col * (w + MARGIN)
+        y = TITLE_HEIGHT + row * (h + MARGIN)
+        
+        # Get slices
+        input_slice = (input_volume[:, :, i] * 255).astype(np.uint8)
+        seg_slice = rgba_volume[i, :, :, :]
+        
+        # Create composite image
+        bg = Image.fromarray(input_slice).convert('RGB')
+        overlay = Image.fromarray(seg_slice).convert('RGBA')
+        composite = Image.alpha_composite(bg.convert('RGBA'), overlay).convert('RGB')
+        
+        # Paste into grid
+        grid_img.paste(composite, (x, y))
+    
+    return grid_img
 
 # --- Initialize Session State ---
 if 'model_loaded' not in st.session_state: st.session_state.model_loaded = None
@@ -389,7 +448,6 @@ if __name__ == "__main__":
                 st.error(f"Failed to load pretrained model: {e}")
                 st.exception(e)
                 
-    st.sidebar.markdown(f"--- \n{t['running_on']}: **{st.session_state.device}**")
 
     # --- NIfTI File Uploaders ---
     st.header(t["input_files"])
@@ -617,6 +675,33 @@ if __name__ == "__main__":
                     mime="application/zip",
                     on_click=lambda: st.session_state.pop('zip_buffer_pngs', None)
                 )
+                # Add the new grid download option
+    st.subheader("3. High-Resolution Slice Grid (13x10)")
+    if st.button("Generate High-Res Slice Grid"):
+        with st.spinner("Creating high-resolution grid image..."):
+            # Create the grid
+            grid_img = create_slice_grid(
+                st.session_state.input_for_vis_np,  # (H,W,D) input volume
+                st.session_state.prediction_rgba_dhw4,  # (D,H,W,4) segmentation
+                st.session_state.patient_name
+            )
+            
+            # Save to buffer
+            img_buffer = io.BytesIO()
+            grid_img.save(img_buffer, format='PNG', quality=100, dpi=(300, 300))
+            img_buffer.seek(0)
+            
+            # Show preview
+            st.image(grid_img, caption="Preview of Slice Grid", use_column_width=True)
+            
+            # Download button
+            st.download_button(
+                label="Download High-Res Grid (PNG)",
+                data=img_buffer,
+                file_name=f"{st.session_state.patient_name}_slice_grid.png",
+                mime="image/png"
+            )
+        
 
     st.markdown("---")
     st.markdown(f"Timestamp: {st.session_state.current_date}")
