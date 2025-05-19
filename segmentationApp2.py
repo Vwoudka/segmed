@@ -44,10 +44,15 @@ TRANSLATIONS = {
         "title": "3D Brain tumour segmentation website",
         "description": """
         SegMed is a Computer-Aided Diagonosis (CAD) system dedicated for brain tumors segmentation, It is made by Marouane Rhazzafe, an undergraduate student of biomedical engineering in L'INSTITUT SUPÉRIEUR DES SCIENCES DE LA SANTÉ SETTAT, as a Final Year Project during my internship in the Military Hospital MOULAY ISMAIL in Meknès, Morocco
+        
         To use the app, you can load the pretrained model I made, it's a 3D-UNet model that was trained by a 100 random patient for 20 epochs (4 input channels, 4 output channels, and 32 features) from the task 1 dataset of the BraTS challenge (Pre-treatment Glioma segmentation).
+        
         It has a dice coefficient of 0.7111 after being validated with a random 25 patients.
+        
         Otherwise, you can upload any 3D-UNet model you want.
+        
         Hope you find this app useful ;)
+        
         The app performs segmentation and offers two download options:
         1. A standard **NIfTI label map** (`.nii.gz`).
         2. A **ZIP archive of PNG images** for each of the 130 processed slices.
