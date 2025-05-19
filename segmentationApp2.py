@@ -43,9 +43,9 @@ TRANSLATIONS = {
     "English": {
         "title": "3D Brain tumour segmentation website",
         "description": """
-        SegMed is a Computer-Aided Diagonosis (CAD) system dedicated for brain tumors segmentation, It is made by Marouane Rhazzafe, an undergraduate student of biomedical engineering in L'INSTITUT SUPÉRIEUR DES SCIENCES DE LA SANTÉ SETTAT, as a Final Year Project during my internship in the Military Hospital MOULAY ISMAIL in Meknès, Morocco
+        SegMed is a Computer-Aided Diagnosis (CAD) system dedicated to brain tumor segmentation. It is made by Marouane Rhazzafe, an undergraduate student of biomedical engineering in L'INSTITUT SUPÉRIEUR DES SCIENCES DE LA SANTÉ SETTAT, as a Final Year Project during my internship in the Military Hospital MOULAY ISMAIL in Meknès, Morocco
         
-        To use the app, you can load the pretrained model I made, it's a 3D-UNet model that was trained by a 100 random patient for 20 epochs (4 input channels, 4 output channels, and 32 features) from the task 1 dataset of the BraTS challenge (Pre-treatment Glioma segmentation).
+        To use the app, you can load the pre-trained model I made. It's a 3D-UNet model that was trained by a 100 random patients for 20 epochs (4 input channels, 4 output channels, and 32 features) from the task 1 dataset of the BraTS challenge (Pre-treatment Glioma segmentation).
         
         It has a dice coefficient of 0.7111 after being validated with a random 25 patients.
         
@@ -53,7 +53,7 @@ TRANSLATIONS = {
         
         Hope you find this app useful ;)
         
-        The app performs segmentation and offers two download options:
+        The app offers two download options:
         1. A standard **NIfTI label map** (`.nii.gz`).
         2. A **ZIP archive of PNG images** for each of the 130 processed slices.
         **Ensure your uploaded model weights match the U-Net architecture defined here.**
@@ -90,8 +90,18 @@ TRANSLATIONS = {
     "Español": {
         "title": "Sitio web de segmentación 3D de tumores cerebrales",
         "description": """
-        Suba un modelo U-Net 3D preentrenado y modalidades NIfTI.
-        La aplicación realiza la segmentación y ofrece dos opciones de descarga:
+        SegMed es un sistema de Diagnóstico Asistido por Computadora (CAD) dedicado a la segmentación de tumores cerebrales. Fue desarrollado por Marouane Rhazzafe, un estudiante de último año de ingeniería biomédica en el INSTITUT SUPÉRIEUR DES SCIENCES DE LA SANTÉ SETTAT, como Proyecto Final de Carrera durante sus prácticas en el Hospital Militar MOULAY ISMAIL en Meknès, Marruecos
+        
+        Para usar la aplicación, puedes cargar el modelo preentrenado que hice. Es un modelo 3D-UNet entrenado con 100 pacientes aleatorios durante 20 épocas (4 canales de entrada, 4 canales de salida y 32 características) a partir del conjunto de datos de la tarea 1 del desafío BraTS (Segmentación de gliomas antes del tratamiento).
+        
+        Tiene un coeficiente de Dice de 0.7111 tras ser validado con 25 pacientes aleatorios.
+        
+        De lo contrario, puedes subir cualquier modelo 3D-UNet que desees.
+        
+        Espero que esta aplicación te sea útil ;)
+        
+        La aplicación ofrece dos opciones de descarga:
+
         1. Un **mapa de etiquetas NIfTI** estándar (`.nii.gz`).
         2. Un **archivo ZIP de imágenes PNG** para cada una de las 130 rebanadas procesadas.
         **Asegúrese de que los pesos del modelo cargado coincidan con la arquitectura U-Net definida aquí.**
@@ -128,8 +138,18 @@ TRANSLATIONS = {
     "Français": {
         "title": "Un site web de segmentation 3D de tumeurs cérébrales",
         "description": """
-        Téléchargez un modèle U-Net 3D pré-entraîné et des modalités NIfTI.
-        L'application effectue la segmentation et propose deux options de téléchargement :
+        SegMed est un système d’Aide au Diagnostic (CAD) dédié à la segmentation des tumeurs cérébrales. Il a été réalisé par Marouane Rhazzafe, un étudiant en dernière année de génie biomédical à L'INSTITUT SUPÉRIEUR DES SCIENCES DE LA SANTÉ SETTAT, dans le cadre de son projet de fin d’études lors d’un stage à l’Hôpital Militaire MOULAY ISMAIL à Meknès, Maroc
+        
+        Pour utiliser l'application, vous pouvez charger le modèle pré-entraîné que j’ai réalisé. Il s’agit d’un modèle 3D-UNet entraîné sur 100 patients choisis aléatoirement pendant 20 époques (4 canaux d’entrée, 4 canaux de sortie et 32 filtres) à partir du dataset de la tâche 1 du challenge BraTS (Segmentation des gliomes avant traitement).
+        
+        Il a obtenu un coefficient de Dice de 0.7111 après validation sur 25 patients choisis aléatoirement.
+        
+        Sinon, vous pouvez téléverser n’importe quel modèle 3D-UNet de votre choix.
+        
+        J’espère que vous trouverez cette application utile ;)
+        
+        L’application propose deux options de téléchargement :
+
         1. Une **carte d'étiquettes NIfTI** standard (`.nii.gz`).
         2. Une **archive ZIP d'images PNG** pour chacune des 130 tranches traitées.
         **Assurez-vous que les poids de votre modèle correspondent à l'architecture U-Net définie ici.**
