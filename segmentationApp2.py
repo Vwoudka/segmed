@@ -87,54 +87,6 @@ TRANSLATIONS = {
             "Enhancing": "Enhancing Tumor"
         }
     },
-    "Español": {
-        "title": "Sitio web de segmentación 3D de tumores cerebrales",
-        "description": """
-        SegMed es un sistema de Diagnóstico Asistido por Computadora (CAD) dedicado a la segmentación de tumores cerebrales. Fue desarrollado por Marouane Rhazzafe, un estudiante de último año de ingeniería biomédica en el INSTITUT SUPÉRIEUR DES SCIENCES DE LA SANTÉ SETTAT, como Proyecto Final de Carrera durante sus prácticas en el Hospital Militar MOULAY ISMAIL en Meknès, Marruecos
-        
-        Para usar la aplicación, puedes cargar el modelo preentrenado que hice. Es un modelo 3D-UNet entrenado con 100 pacientes aleatorios durante 20 épocas (4 canales de entrada, 4 canales de salida y 32 características) a partir del conjunto de datos de la tarea 1 del desafío BraTS (Segmentación de gliomas antes del tratamiento).
-        
-        Tiene un coeficiente de Dice de 0.7111 tras ser validado con 25 pacientes aleatorios.
-        
-        De lo contrario, puedes subir cualquier modelo 3D-UNet que desees.
-        
-        Espero que esta aplicación te sea útil ;)
-        
-        La aplicación ofrece dos opciones de descarga:
-
-        1. Un **mapa de etiquetas NIfTI** estándar (`.nii.gz`).
-        2. Un **archivo ZIP de imágenes PNG** para cada una de las 130 rebanadas procesadas.
-        **Asegúrese de que los pesos del modelo cargado coincidan con la arquitectura U-Net definida aquí.**
-        """,
-        "sidebar_header": "⚙️ Configuración",
-        "patient_id": "Nombre/ID del Paciente",
-        "unet_config": "Arquitectura U-Net",
-        "input_channels": "Canales de Entrada (C)",
-        "output_classes": "Clases de Salida (Total, incl. fondo)",
-        "base_features": "Características Base",
-        "upload_model": "Subir Modelo U-Net 3D (.pth)",
-        "pretrained_model": "Modelo Preentrenado",
-        "load_pretrained": "Cargar Modelo Preentrenado desde GitHub",
-        "running_on": "Ejecutando en",
-        "input_files": "📁 Archivos NIfTI de Entrada",
-        "modality_names": ["T1-nativo (t1n)", "T1-contraste (t1c)", "T2-FLAIR (t2f)", "T2-ponderado (t2w)"],
-        "run_button": "🚀 Ejecutar Segmentación 3D",
-        "results_header": "📊 Resultados de Segmentación",
-        "multi_view": "Superposición de Segmentación Multivista",
-        "legend_header": "Leyenda de Segmentación",
-        "download_header": "💾 Opciones de Descarga",
-        "nifti_option": "1. Mapa de Etiquetas NIfTI",
-        "download_nifti": "Descargar Segmentación de Etiquetas (.nii.gz)",
-        "png_option": "2. Rebanadas PNG (Superposición)",
-        "prepare_png": "Preparar Rebanadas PNG para Descargar ",
-        "download_png": "Descargar Rebanadas PNG para {} (.zip)",
-        "labels": {
-            "Background": "Fondo (Tejido Normal)",
-            "Necrotic": "Tumor Necrótico/No Reforzado",
-            "Edema": "Edema",
-            "Enhancing": "Tumor Reforzado"
-        }
-    },
     "Français": {
         "title": "Un site web de segmentation 3D de tumeurs cérébrales",
         "description": """
