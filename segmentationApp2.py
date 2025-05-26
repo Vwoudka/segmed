@@ -333,7 +333,7 @@ def main():
             f"""
             <style>
                 .stApp {{
-                    background-image: url("https://raw.githubusercontent.com/Vwoudka/segmed/main/.devcontainer/Background.png");
+                    background-image: url("https://raw.githubusercontent.com/Vwoudka/segmed/main/.devcontainer/iStock-1452990966-modified-26cda7e8-4ee1-4a98-b681-f8a249f82c52-768x432.jpg");
                     background-size: contain;
                     background-position: center center;
                     background-repeat: no-repeat;
