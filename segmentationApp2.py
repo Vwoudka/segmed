@@ -45,9 +45,7 @@ TRANSLATIONS = {
         "description": """
         SegMed is a Computer-Aided Diagnosis (CAD) system dedicated to brain tumor segmentation. It is made by Marouane Rhazzafe, an undergraduate student of biomedical engineering in L'INSTITUT SUPÉRIEUR DES SCIENCES DE LA SANTÉ SETTAT, as a Final Year Project during my internship in the Military Hospital MOULAY ISMAIL in Meknès, Morocco
         
-        To use the app, you can load the pre-trained model I made. It's a 3D-UNet model that was trained by a 100 random patients for 20 epochs (4 input channels, 4 output channels, and 32 features) from the task 1 dataset of the BraTS challenge (Pre-treatment Glioma segmentation).
-        
-        It has a dice coefficient of 0.7111 after being validated with a random 25 patients.
+        To use the app, you can load a pre-trained model.
         
         Otherwise, you can upload any 3D-UNet model you want.
         
@@ -92,10 +90,8 @@ TRANSLATIONS = {
         "description": """
         SegMed est un système d’Aide au Diagnostic (CAD) dédié à la segmentation des tumeurs cérébrales. Il a été réalisé par Marouane Rhazzafe, un étudiant en dernière année de génie biomédical à L'INSTITUT SUPÉRIEUR DES SCIENCES DE LA SANTÉ SETTAT, dans le cadre de son projet de fin d’études lors d’un stage à l’Hôpital Militaire MOULAY ISMAIL à Meknès, Maroc
         
-        Pour utiliser l'application, vous pouvez charger le modèle pré-entraîné que j’ai réalisé. Il s’agit d’un modèle 3D-UNet entraîné sur 100 patients choisis aléatoirement pendant 20 époques (4 canaux d’entrée, 4 canaux de sortie et 32 filtres) à partir du dataset de la tâche 1 du challenge BraTS (Segmentation des gliomes avant traitement).
-        
-        Il a obtenu un coefficient de Dice de 0.7111 après validation sur 25 patients choisis aléatoirement.
-        
+        Pour utiliser l'application, vous pouvez charger le modèle pré-entraîné.
+                
         Sinon, vous pouvez téléverser n’importe quel modèle 3D-UNet de votre choix.
         
         J’espère que vous trouverez cette application utile ;)
