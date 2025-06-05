@@ -8,766 +8,722 @@ import os
 import tempfile
 from skimage.transform import resize
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import io
 import zipfile
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
-import io
-import zipfile
+import math
 
-# --- Configuration from Training Script (Defaults) ---
+# --- Configuration ---
 DEFAULT_IN_CHANNELS = 4
-DEFAULT_OUT_CLASSES = 4
+DEFAULT_OUT_CLASSES = 4 # Incl. background
 DEFAULT_BASE_FEATURES = 32
 TARGET_HW_SHAPE = (128, 128)
-START_SLICE = 25
-END_SLICE = 155
-TARGET_DEPTH = END_SLICE - START_SLICE
+START_SLICE = 0
+END_SLICE = 182
+TARGET_DEPTH = END_SLICE - START_SLICE # This is 182
 
-# --- Label to RGBA Color Mapping ---
+# --- Label and Color Definitions ---
 LABEL_TO_RGBA = {
-    0: (0, 0, 0, 0),
-    1: (255, 0, 0, 255),
-    2: (0, 255, 0, 255),
-    3: (255, 255, 0, 255),
+    0: (0, 0, 0, 0),      # Background
+    1: (255, 0, 0, 255),  # Necrotic (Red)
+    2: (0, 255, 0, 255),  # Edema (Green)
+    3: (255, 255, 0, 255), # Enhancing (Yellow)
 }
-
 SEGMENTATION_LABELS_DICT = {
     1: "Necrotic",
     2: "Edema",
     3: "Enhancing",
 }
 
-# --- Translation Dictionary ---
+# --- Translations  ---
 TRANSLATIONS = {
     "English": {
-        "title": "3D Brain tumour segmentation website",
+        "title": "3D Brain Tumour Segmentation",
         "description": """
-        SegMed is a Computer-Aided Diagnosis (CAD) system dedicated to brain tumor segmentation. It is made by Marouane Rhazzafe, an undergraduate student of biomedical engineering in L'INSTITUT SUPÉRIEUR DES SCIENCES DE LA SANTÉ SETTAT, as a Final Year Project during my internship in the Military Hospital MOULAY ISMAIL in Meknès, Morocco
-        
-        To use the app, you can load a pre-trained model.
-        
-        Otherwise, you can upload any 3D-UNet model you want.
-        
-        Hope you find this app useful ;)
-        
-        The app offers two download options:
+        SegMed is a Computer-Aided Diagnosis (CAD) system for brain tumor segmentation.
+        Created by Marouane Rhazzafe (undergraduate biomedical engineering student, ISSS Settat)
+        as a Final Year Project during an internship at Military Hospital MOULAY ISMAIL, Meknès, Morocco.
+
+        Load an example pre-trained model or upload your own 3D U-Net model.
+        The app offers two download options for the segmentation:
         1. A standard **NIfTI label map** (`.nii.gz`).
-        2. A **ZIP archive of PNG images** for each of the 130 processed slices.
-        **Ensure your uploaded model weights match the U-Net architecture defined here.**
+        2. A **ZIP archive of PNG images** for each of the {TARGET_DEPTH} processed slices, with legends.
+        **Ensure your uploaded model weights match the U-Net architecture defined here and the configured target depth ({TARGET_DEPTH} slices). The model architecture assumes InstanceNorm3D layers have affine=False and Conv3D layers in blocks have bias=False, while initial/upsampling convs may have bias=True.**
         """,
         "sidebar_header": "⚙️ Configuration",
         "patient_id": "Patient Name/ID",
         "unet_config": "U-Net Architecture",
+        "voxel_dims_header": "Voxel Dimensions for Volume Calc (mm)",
+        "use_header_dims_label": "Use dimensions from NIfTI header",
+        "vox_x_label": "Vox X (mm)",
+        "vox_y_label": "Vox Y (mm)",
+        "vox_z_label": "Vox Z (mm)",
         "input_channels": "Input Channels (C)",
         "output_classes": "Output Classes (Total, incl. background)",
         "base_features": "Base Features",
         "upload_model": "Upload 3D U-Net Model (.pth)",
-        "pretrained_model": "Pretrained Model",
-        "load_pretrained": "Load Pretrained Model from GitHub",
+        "pretrained_model": "Example Pretrained Model",
+        "load_pretrained": "Load Example Pretrained Model",
         "running_on": "Running on",
         "input_files": "📁 Input NIfTI Files",
         "modality_names": ["T1-native (t1n)", "T1-contrast (t1c)", "T2-FLAIR (t2f)", "T2-weighted (t2w)"],
         "run_button": "🚀 Run 3D Segmentation",
         "results_header": "📊 Segmentation Results",
+        "volumetric_analysis_header": "🔬 Volumetric Analysis",
         "multi_view": "Multi-View Segmentation Overlay",
         "legend_header": "Segmentation Legend",
         "download_header": "💾 Download Options",
         "nifti_option": "1. NIfTI Label Map",
         "download_nifti": "Download Label Segmentation (.nii.gz)",
         "png_option": "2. PNG Slices (Overlay)",
-        "prepare_png": "Prepare PNG Slices for Download ",
+        "prepare_png": "Prepare PNG Slices for Download",
         "download_png": "Download PNG Slices for {} (.zip)",
+        "grid_image_option_label": "Slice Grid Image with Legend",
+        "download_grid_image_label": "Download Slice Grid Image (.png)",
+        "png_individual_option_label": "Individual Slices with Legend ({TARGET_DEPTH}) (ZIP)",
         "labels": {
             "Background": "Background (Normal Tissue)",
-            "Necrotic": "Necrotic/Non-Enhancing Tumor",
-            "Edema": "Edema",
+            "Necrotic": "Necrotic/Non-Enhancing",
+            "Edema": "Peritumoral Edema",
             "Enhancing": "Enhancing Tumor"
-        }
+        },
+        "volume_label_unit": "cm³"
     },
     "Français": {
-        "title": "Un site web de segmentation 3D de tumeurs cérébrales",
+        "title": "Segmentation 3D de Tumeurs Cérébrales",
         "description": """
-        SegMed est un système d’Aide au Diagnostic (CAD) dédié à la segmentation des tumeurs cérébrales. Il a été réalisé par Marouane Rhazzafe, un étudiant en dernière année de génie biomédical à L'INSTITUT SUPÉRIEUR DES SCIENCES DE LA SANTÉ SETTAT, dans le cadre de son projet de fin d’études lors d’un stage à l’Hôpital Militaire MOULAY ISMAIL à Meknès, Maroc
-        
-        Pour utiliser l'application, vous pouvez charger le modèle pré-entraîné.
-                
-        Sinon, vous pouvez téléverser n’importe quel modèle 3D-UNet de votre choix.
-        
-        J’espère que vous trouverez cette application utile ;)
-        
-        L’application propose deux options de téléchargement :
+        SegMed est un système de Diagnostic Assisté par Ordinateur (DAO) pour la segmentation des tumeurs cérébrales.
+        Réalisé par Marouane Rhazzafe (étudiant en génie biomédical, ISSS Settat)
+        dans le cadre de son Projet de Fin d'Études lors d'un stage à l'Hôpital Militaire MOULAY ISMAIL, Meknès, Maroc.
 
+        Chargez un exemple de modèle pré-entraîné ou téléversez votre propre modèle 3D U-Net.
+        L'application offre deux options de téléchargement pour la segmentation :
         1. Une **carte d'étiquettes NIfTI** standard (`.nii.gz`).
-        2. Une **archive ZIP d'images PNG** pour chacune des 130 tranches traitées.
-        **Assurez-vous que les poids de votre modèle correspondent à l'architecture U-Net définie ici.**
+        2. Une **archive ZIP d'images PNG** pour chacune des {TARGET_DEPTH} tranches traitées, avec légendes.
+        **Assurez-vous que les poids de votre modèle téléversé correspondent à l'architecture U-Net définie ici (incluant affine=False pour InstanceNorm, bias=False pour les Conv3D dans les blocs, etc.) et à la profondeur cible configurée ({TARGET_DEPTH} tranches).**
         """,
         "sidebar_header": "⚙️ Configuration",
         "patient_id": "Nom/ID du Patient",
         "unet_config": "Architecture U-Net",
+        "voxel_dims_header": "Dimensions des Voxels pour Calcul Vol. (mm)",
+        "use_header_dims_label": "Utiliser dimensions de l'en-tête NIfTI",
+        "vox_x_label": "Vox X (mm)",
+        "vox_y_label": "Vox Y (mm)",
+        "vox_z_label": "Vox Z (mm)",
         "input_channels": "Canaux d'Entrée (C)",
         "output_classes": "Classes de Sortie (Total, incl. fond)",
         "base_features": "Fonctions de Base",
         "upload_model": "Télécharger Modèle U-Net 3D (.pth)",
-        "pretrained_model": "Modèle Pré-entraîné",
-        "load_pretrained": "Charger Modèle Pré-entraîné depuis GitHub",
+        "pretrained_model": "Exemple de Modèle Pré-entraîné",
+        "load_pretrained": "Charger Exemple de Modèle Pré-entraîné",
         "running_on": "Exécution sur",
         "input_files": "📁 Fichiers NIfTI d'Entrée",
         "modality_names": ["T1-natif (t1n)", "T1-contraste (t1c)", "T2-FLAIR (t2f)", "T2-pondéré (t2w)"],
         "run_button": "🚀 Exécuter Segmentation 3D",
         "results_header": "📊 Résultats de Segmentation",
+        "volumetric_analysis_header": "🔬 Analyse Volumétrique",
         "multi_view": "Superposition de Segmentation Multi-vues",
         "legend_header": "Légende de Segmentation",
         "download_header": "💾 Options de Téléchargement",
         "nifti_option": "1. Carte d'Étiquettes NIfTI",
-        "download_nifti": "Télécharger Segmentation d'Étiquettes (.nii.gz)",
+        "download_nifti": "Télécharger Segmentation (.nii.gz)",
         "png_option": "2. Tranches PNG (Superposition)",
-        "prepare_png": "Préparer Tranches PNG pour Téléchargement ",
+        "prepare_png": "Préparer Tranches PNG pour Téléchargement",
         "download_png": "Télécharger Tranches PNG pour {} (.zip)",
+        "grid_image_option_label": "Image en Grille avec Légende",
+        "download_grid_image_label": "Télécharger l'Image en Grille (.png)",
+        "png_individual_option_label": "Tranches Individuelles avec Légende ({TARGET_DEPTH}) (ZIP)",
         "labels": {
             "Background": "Arrière-plan (Tissu Normal)",
-            "Necrotic": "Tumeur Nécrotique/Non Rehaussée",
-            "Edema": "Œdème",
+            "Necrotic": "Nécrotique/Non-Rehaussé",
+            "Edema": "Œdème Péritumoral",
             "Enhancing": "Tumeur Rehaussée"
-        }
+        },
+        "volume_label_unit": "cm³"
     }
 }
 
-# --- 3D U-Net Model Definition ---
-class UNet3D(nn.Module):
-    def __init__(self, in_channels=DEFAULT_IN_CHANNELS, out_channels=DEFAULT_OUT_CLASSES, base_features=DEFAULT_BASE_FEATURES):
-        super(UNet3D, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.base_features = base_features
-        # Initial convolution block
-        self.initial_conv = nn.Sequential(
-            nn.Conv3d(in_channels, base_features, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.InstanceNorm3d(base_features), nn.ReLU(inplace=True)
+# --- Model Definition ---
+class AttentionGate3D(nn.Module):
+    def __init__(self, F_g, F_l, F_int):
+        super(AttentionGate3D, self).__init__()
+        self.W_g = nn.Sequential(
+            nn.Conv3d(F_g, F_int, kernel_size=1, stride=1, padding=0, bias=True),
+            nn.InstanceNorm3d(F_int, affine=False)
         )
-        # Encoder path
-        self.encoder1 = self._make_block(base_features, base_features, blocks=1)
-        self.encoder2 = self._make_block(base_features, base_features * 2, blocks=1, stride=2)
-        self.encoder3 = self._make_block(base_features * 2, base_features * 4, blocks=1, stride=2)
-        self.encoder4 = self._make_block(base_features * 4, base_features * 8, blocks=1, stride=2)
-        # Decoder path
-        self.upconv3 = nn.ConvTranspose3d(base_features * 8, base_features * 4, kernel_size=2, stride=2)
-        self.decoder3 = self._make_block(base_features * 4 * 2, base_features * 4, blocks=1) 
-        self.upconv2 = nn.ConvTranspose3d(base_features * 4, base_features * 2, kernel_size=2, stride=2)
-        self.decoder2 = self._make_block(base_features * 2 * 2, base_features * 2, blocks=1)
-        self.upconv1 = nn.ConvTranspose3d(base_features * 2, base_features, kernel_size=2, stride=2)
-        self.decoder1 = self._make_block(base_features * 2, base_features, blocks=1) 
-        # Final convolution
-        self.final_conv = nn.Conv3d(base_features, out_channels, kernel_size=1)
+        self.W_x = nn.Sequential(
+            nn.Conv3d(F_l, F_int, kernel_size=1, stride=1, padding=0, bias=True),
+            nn.InstanceNorm3d(F_int, affine=False)
+        )
+        self.psi = nn.Sequential(
+            nn.Conv3d(F_int, 1, kernel_size=1, stride=1, padding=0, bias=True),
+            nn.InstanceNorm3d(1, affine=False),
+            nn.Sigmoid()
+        )
+        self.relu = nn.ReLU(inplace=True)
 
-    def _conv_block(self, in_channels, out_channels, stride=1):
+    def forward(self, g, x):
+        g1 = self.W_g(g)
+        x1 = self.W_x(x)
+        if g1.shape[2:] != x1.shape[2:]:
+            g1 = F.interpolate(g1, size=x1.shape[2:], mode='trilinear', align_corners=False)
+        psi_output = self.relu(g1 + x1)
+        psi_output = self.psi(psi_output)
+        return x * psi_output
+
+class AttentionUNet3D(nn.Module):
+    def __init__(self, in_channels=DEFAULT_IN_CHANNELS, out_channels=DEFAULT_OUT_CLASSES, base_features=DEFAULT_BASE_FEATURES):
+        super(AttentionUNet3D, self).__init__()
+
+        self.initial_conv = nn.Sequential(
+            nn.Conv3d(in_channels, base_features, kernel_size=3, padding=1, bias=True),
+            nn.InstanceNorm3d(base_features, affine=False),
+            nn.ReLU(inplace=True)
+        )
+        self.encoder1 = self._make_block(base_features, base_features)
+        self.encoder2 = self._make_block(base_features, base_features * 2, stride=2)
+        self.encoder3 = self._make_block(base_features * 2, base_features * 4, stride=2)
+        self.encoder4 = self._make_block(base_features * 4, base_features * 8, stride=2)
+
+        self.up3 = self._make_upsample(base_features * 8, base_features * 4)
+        self.attn3 = AttentionGate3D(F_g=base_features * 4, F_l=base_features * 4, F_int=base_features * 2)
+        self.decoder3 = self._make_block(base_features * 8, base_features * 4)
+
+        self.up2 = self._make_upsample(base_features * 4, base_features * 2)
+        self.attn2 = AttentionGate3D(F_g=base_features * 2, F_l=base_features * 2, F_int=base_features)
+        self.decoder2 = self._make_block(base_features * 4, base_features * 2)
+
+        self.up1 = self._make_upsample(base_features * 2, base_features)
+        self.attn1 = AttentionGate3D(F_g=base_features, F_l=base_features, F_int=base_features // 2)
+        self.decoder1 = self._make_block(base_features * 2, base_features)
+
+        self.final_conv = nn.Conv3d(base_features, out_channels, kernel_size=1, bias=True)
+
+    def _make_block(self, in_channels, out_channels, stride=1):
         return nn.Sequential(
             nn.Conv3d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False),
-            nn.InstanceNorm3d(out_channels), nn.ReLU(inplace=True),
+            nn.InstanceNorm3d(out_channels, affine=False),
+            nn.ReLU(inplace=True),
             nn.Conv3d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.InstanceNorm3d(out_channels), nn.ReLU(inplace=True)
+            nn.InstanceNorm3d(out_channels, affine=False),
+            nn.ReLU(inplace=True)
         )
 
-    def _make_block(self, in_channels, out_channels, blocks, stride=1):
-        layers = [self._conv_block(in_channels, out_channels, stride)]
-        for _ in range(1, blocks): 
-            layers.append(self._conv_block(out_channels, out_channels))
-        return nn.Sequential(*layers)
+    def _make_upsample(self, in_channels, out_channels):
+        return nn.Sequential(
+            nn.ConvTranspose3d(in_channels, out_channels, kernel_size=2, stride=2, bias=True),
+            nn.InstanceNorm3d(out_channels, affine=False),
+            nn.ReLU(inplace=True)
+        )
+
+    def _match_spatial_dims(self, tensor_to_pad, target_tensor):
+        s_pad = tensor_to_pad.size()
+        s_target = target_tensor.size()
+        padding = []
+        for i in range(3):
+            dim_index_in_tensor = 4 - i
+            diff = s_target[dim_index_in_tensor] - s_pad[dim_index_in_tensor]
+            pad1 = diff // 2
+            pad2 = diff - pad1
+            padding.extend([pad1, pad2])
+        return F.pad(tensor_to_pad, padding)
 
     def forward(self, x):
-        x1 = self.initial_conv(x); e1 = self.encoder1(x1)
-        e2 = self.encoder2(e1); e3 = self.encoder3(e2); e4 = self.encoder4(e3)
-        d3 = self.upconv3(e4)
-        if d3.shape[2:] != e3.shape[2:]: d3 = F.interpolate(d3, size=e3.shape[2:], mode='trilinear', align_corners=False)
-        d3 = torch.cat([d3, e3], dim=1); d3 = self.decoder3(d3)
-        d2 = self.upconv2(d3)
-        if d2.shape[2:] != e2.shape[2:]: d2 = F.interpolate(d2, size=e2.shape[2:], mode='trilinear', align_corners=False)
-        d2 = torch.cat([d2, e2], dim=1); d2 = self.decoder2(d2)
-        d1 = self.upconv1(d2)
-        if d1.shape[2:] != e1.shape[2:]: d1 = F.interpolate(d1, size=e1.shape[2:], mode='trilinear', align_corners=False)
-        d1 = torch.cat([d1, e1], dim=1); d1 = self.decoder1(d1)
-        logits = self.final_conv(d1)
-        return F.interpolate(logits, size=x.shape[2:], mode='trilinear', align_corners=False)
+        enc_initial = self.initial_conv(x)
+        enc1 = self.encoder1(enc_initial)
+        enc2 = self.encoder2(enc1)
+        enc3 = self.encoder3(enc2)
+        enc4 = self.encoder4(enc3)
 
+        dec3_up = self.up3(enc4)
+        if dec3_up.shape[2:] != enc3.shape[2:]: dec3_up = self._match_spatial_dims(dec3_up, enc3)
+        att3 = self.attn3(g=dec3_up, x=enc3)
+        dec3_cat = torch.cat([dec3_up, att3], dim=1)
+        dec3 = self.decoder3(dec3_cat)
 
-# --- Data Preprocessing Function ---
+        dec2_up = self.up2(dec3)
+        if dec2_up.shape[2:] != enc2.shape[2:]: dec2_up = self._match_spatial_dims(dec2_up, enc2)
+        att2 = self.attn2(g=dec2_up, x=enc2)
+        dec2_cat = torch.cat([dec2_up, att2], dim=1)
+        dec2 = self.decoder2(dec2_cat)
+
+        dec1_up = self.up1(dec2)
+        if dec1_up.shape[2:] != enc1.shape[2:]: dec1_up = self._match_spatial_dims(dec1_up, enc1)
+        att1 = self.attn1(g=dec1_up, x=enc1)
+        dec1_cat = torch.cat([dec1_up, att1], dim=1)
+        dec1 = self.decoder1(dec1_cat)
+
+        logits = self.final_conv(dec1)
+        return logits
+
+# --- Utility Functions ---
 def load_nii_and_preprocess(file_path, is_label=False, target_hw_shape=TARGET_HW_SHAPE, slice_range=(START_SLICE, END_SLICE)):
     try:
         img = nib.load(file_path)
-        data = np.array(img.dataobj).astype(np.float32 if not is_label else np.int64)
-        s_start, s_end = slice_range; target_d = s_end - s_start 
+        data = np.array(img.dataobj, dtype=(np.int64 if is_label else np.float32))
+        s_start, s_end = slice_range
+        target_d = s_end - s_start
 
         if data.ndim == 4 and data.shape[3] == 1: data = np.squeeze(data, axis=3)
-        elif data.ndim != 3: 
-            st.warning(f"File {os.path.basename(file_path)} has {data.shape} dims. Expected 3D."); return None, None, None
-        
-        current_depth = data.shape[2]
-        if current_depth > s_start:
-            data_cropped_depth = data[:, :, s_start:min(s_end, current_depth)]
-        else: 
-            data_cropped_depth = np.zeros((data.shape[0], data.shape[1], 0), dtype=data.dtype)
-        
-        if data_cropped_depth.shape[2] == 0 and current_depth <= s_start and target_d > 0 :
-            st.info(f"File {os.path.basename(file_path)} depth ({current_depth}) too shallow for start_slice ({s_start}). Initializing with zeros before padding.")
+        if data.ndim != 3:
+            st.warning(f"File {os.path.basename(file_path)}: unexpected dimensions {data.shape}. Expected 3D array."); return None, None, None
 
-        processed_depth_val = data_cropped_depth.shape[2]
-        if processed_depth_val < target_d:
-            padding_needed = target_d - processed_depth_val
-            pad_width = ((0,0), (0,0), (0, padding_needed))
-            data_cropped_depth = np.pad(data_cropped_depth, pad_width, mode='constant', constant_values=0)
-        elif processed_depth_val > target_d: 
-            data_cropped_depth = data_cropped_depth[:, :, :target_d]
-        
+        current_h_orig, current_w_orig, current_depth_orig = data.shape
+
+        if current_depth_orig > s_start:
+            data_cropped_at_start = data[:, :, s_start:min(s_end, current_depth_orig)]
+        else:
+            data_cropped_at_start = np.zeros((current_h_orig, current_w_orig, 0), dtype=data.dtype)
+
+        current_depth_after_crop = data_cropped_at_start.shape[2]
+        if current_depth_after_crop < target_d:
+            padding_needed = target_d - current_depth_after_crop
+            pad_config_depth = ((0,0), (0,0), (0, padding_needed))
+            volume_adjusted_depth = np.pad(data_cropped_at_start, pad_config_depth, mode='constant', constant_values=0)
+        elif current_depth_after_crop > target_d:
+            volume_adjusted_depth = data_cropped_at_start[:, :, :target_d]
+        else:
+            volume_adjusted_depth = data_cropped_at_start
+
         resized_slices = []
-        for i in range(data_cropped_depth.shape[2]): 
-            slice_data = data_cropped_depth[:, :, i]
-            order = 0 if is_label else 1; anti_aliasing = not is_label; preserve_range = True
-            rs = resize(slice_data, target_hw_shape, order=order, mode='reflect' if not is_label else 'edge', 
-                        anti_aliasing=anti_aliasing, preserve_range=preserve_range)
-            resized_slices.append(rs.astype(np.float32 if not is_label else np.int64))
-        
-        if not resized_slices: st.error(f"No slices processed for {os.path.basename(file_path)}."); return None, None, None
-        
-        resized_volume = np.stack(resized_slices, axis=-1) 
-        
-        if not is_label:
-            min_v, max_v = np.min(resized_volume), np.max(resized_volume)
-            resized_volume = (resized_volume - min_v) / (max_v - min_v) if max_v - min_v > 1e-5 else np.zeros_like(resized_volume)
-        
-        expected_shape = (target_hw_shape[0], target_hw_shape[1], target_d)
-        if resized_volume.shape != expected_shape:
-            st.error(f"Preprocessing failed for {os.path.basename(file_path)}. Shape: {resized_volume.shape}. Expected: {expected_shape}"); return None,None,None
-        return resized_volume, img.affine, img.header
-    except Exception as e: 
-        st.error(f"Error processing NIfTI file {os.path.basename(file_path)}: {e}"); st.exception(e); return None,None,None
+        if volume_adjusted_depth.shape[2] > 0:
+            for i in range(volume_adjusted_depth.shape[2]):
+                slice_to_resize = volume_adjusted_depth[:, :, i]
+                rs_order = 0 if is_label else 1
+                rs_mode = 'edge' if is_label else 'reflect'
+                rs_aa = not is_label
+                resized_slice = resize(slice_to_resize, target_hw_shape, order=rs_order, mode=rs_mode,
+                                       anti_aliasing=rs_aa, preserve_range=True)
+                resized_slices.append(resized_slice.astype(data.dtype))
 
-# --- Function to convert label volume to RGBA volume ---
+        if not resized_slices and target_d > 0:
+            st.error(f"File {os.path.basename(file_path)}: No slices generated, target depth {target_d}."); return None,None,None
+
+        final_volume_hwd = np.stack(resized_slices, axis=-1) if resized_slices else \
+                           np.zeros((target_hw_shape[0], target_hw_shape[1], 0), dtype=data.dtype)
+
+        if not is_label and final_volume_hwd.size > 0:
+            min_v, max_v = np.min(final_volume_hwd), np.max(final_volume_hwd)
+            final_volume_hwd = (final_volume_hwd - min_v) / (max_v - min_v) if (max_v - min_v) > 1e-6 else np.zeros_like(final_volume_hwd)
+
+        expected_shape = (target_hw_shape[0], target_hw_shape[1], target_d)
+        if final_volume_hwd.shape != expected_shape:
+            st.error(f"File {os.path.basename(file_path)}: Final shape {final_volume_hwd.shape} != expected {expected_shape}."); return None,None,None
+        return final_volume_hwd, img.affine, img.header
+    except Exception as e:
+        st.error(f"Error processing NIfTI {os.path.basename(file_path)}: {e}"); st.exception(e); return None,None,None
+
 def labels_to_rgba(label_volume_dhw, num_total_classes, color_map_dict):
-    rgba_volume = np.zeros((*label_volume_dhw.shape, 4), dtype=np.uint8) 
-    for class_idx in range(num_total_classes): 
-        color = color_map_dict.get(class_idx, (0,0,0,0)) 
-        mask = (label_volume_dhw == class_idx)
+    rgba_volume = np.zeros((*label_volume_dhw.shape, 4), dtype=np.uint8)
+    for class_value in range(num_total_classes):
+        color = color_map_dict.get(class_value, (0,0,0,0))
+        mask = (label_volume_dhw == class_value)
         rgba_volume[mask] = color
     return rgba_volume
-def create_slice_grid(input_volume, rgba_volume, patient_name):
-    """
-    Creates a high-resolution grid image of all slices in a 13x10 layout
-    Args:
-        input_volume: (H,W,D) numpy array of input slices
-        rgba_volume: (D,H,W,4) numpy array of RGBA segmentations
-        patient_name: Patient name for title
-    Returns:
-        PIL Image object of the grid
-    """
-    # Grid configuration
+
+def draw_horizontal_legend_pil(draw, start_y, image_width, legend_elements, font,
+                                 box_size=12, text_offset=4, item_spacing=10, text_fill=(0,0,0,255)):
+    total_legend_width = 0
+    element_widths = []
+
+    for item in legend_elements:
+        try:
+            text_bbox = draw.textbbox((0,0), item['label'], font=font)
+            text_width = text_bbox[2] - text_bbox[0]
+        except AttributeError:
+            text_width = font.getsize(item['label'])[0]
+
+        item_width = box_size + text_offset + text_width
+        element_widths.append(item_width)
+        total_legend_width += item_width
+
+    if legend_elements:
+        total_legend_width += item_spacing * (len(legend_elements) - 1)
+    
+    current_x = (image_width - total_legend_width) / 2
+    if current_x < 5: current_x = 5
+
+    for i, item in enumerate(legend_elements):
+        try:
+            ascent, descent = font.getmetrics()
+            text_height_approx = ascent + descent
+        except AttributeError:
+             text_height_approx = font.getsize("A")[1]
+
+
+        box_y_offset = (text_height_approx - box_size) / 2
+        box_y = start_y + box_y_offset
+
+        draw.rectangle([current_x, box_y, current_x + box_size, box_y + box_size], fill=item['color'])
+        draw.text((current_x + box_size + text_offset, start_y), item['label'], font=font, fill=text_fill)
+        current_x += element_widths[i] + item_spacing
+
+def create_slice_grid(input_volume_hwd, rgba_volume_dhw4, patient_name, t, legend_font_pil):
     SLICES_PER_ROW = 13
-    ROWS = 10
-    MARGIN = 5  # White space between slices
-    TITLE_HEIGHT = 60  # Space for title
+    MARGIN = 5
+    TITLE_HEIGHT = 60
+    LEGEND_AREA_HEIGHT = 40
+    IMG_H, IMG_W, TOTAL_SLICES = input_volume_hwd.shape
+
+    if TOTAL_SLICES == 0:
+        placeholder = Image.new('RGB', (300, 100), color='white')
+        draw = ImageDraw.Draw(placeholder)
+        draw.text((10, 10), "No slices for grid.", fill="black")
+        return placeholder
+
+    num_rows = math.ceil(TOTAL_SLICES / SLICES_PER_ROW)
+    grid_content_w = (IMG_W * SLICES_PER_ROW) + (MARGIN * (SLICES_PER_ROW - 1))
+    grid_content_h = (IMG_H * num_rows) + (MARGIN * (num_rows - 1))
     
-    # Get dimensions
-    h, w = input_volume.shape[0], input_volume.shape[1]
-    total_slices = input_volume.shape[2]
-    
-    # Calculate grid dimensions
-    grid_width = (w * SLICES_PER_ROW) + (MARGIN * (SLICES_PER_ROW - 1))
-    grid_height = (h * ROWS) + (MARGIN * (ROWS - 1)) + TITLE_HEIGHT
-    
-    # Create blank white image
-    grid_img = Image.new('RGB', (grid_width, grid_height), color='white')
+    grid_w = max(grid_content_w, 300)
+    grid_h = TITLE_HEIGHT + grid_content_h + LEGEND_AREA_HEIGHT
+
+    grid_img = Image.new('RGB', (int(grid_w), int(grid_h)), color='white')
     draw = ImageDraw.Draw(grid_img)
-    
-    # Add title
+
     try:
-        font = ImageFont.truetype("arial.ttf", 24)
-    except:
-        font = ImageFont.load_default()
+        title_font = ImageFont.truetype("arial.ttf", 24)
+    except IOError:
+        title_font = ImageFont.load_default()
     
-    title = f"Patient: {patient_name} - All Slices (Total: {total_slices})"
-    draw.text((10, 10), title, font=font, fill='black')
+    draw.text((10, 10), f"Pt: {patient_name} - {TOTAL_SLICES} slices ({SLICES_PER_ROW}x{num_rows})", font=title_font, fill='black')
+
+    for i in range(TOTAL_SLICES):
+        r, c = i // SLICES_PER_ROW, i % SLICES_PER_ROW
+        px, py = c * (IMG_W + MARGIN), TITLE_HEIGHT + r * (IMG_H + MARGIN)
+
+        slice_data_float = input_volume_hwd[:, :, i]
+        base_img_pil = Image.fromarray((slice_data_float * 255).astype(np.uint8)).convert('RGBA')
+        
+        segslice_np = rgba_volume_dhw4[i, :, :, :]
+        overlay_pil = Image.fromarray(segslice_np).convert('RGBA')
+        
+        composite_pil = Image.alpha_composite(base_img_pil, overlay_pil)
+        grid_img.paste(composite_pil.convert('RGB'), (int(px), int(py)))
+
+    LEGEND_BG_SWATCH_COLOR = (220, 220, 220, 255)
+    legend_elements_for_grid = [{"label": t['labels']['Background'], "color": LEGEND_BG_SWATCH_COLOR}]
+    for val, name_key in SEGMENTATION_LABELS_DICT.items():
+        legend_elements_for_grid.append({
+            "label": t['labels'].get(name_key, name_key),
+            "color": LABEL_TO_RGBA.get(val, (0,0,0,255))
+        })
     
-    # Composite each slice into the grid
-    for i in range(min(total_slices, SLICES_PER_ROW * ROWS)):
-        row = i // SLICES_PER_ROW
-        col = i % SLICES_PER_ROW
-        
-        # Calculate position
-        x = col * (w + MARGIN)
-        y = TITLE_HEIGHT + row * (h + MARGIN)
-        
-        # Get slices
-        input_slice = (input_volume[:, :, i] * 255).astype(np.uint8)
-        seg_slice = rgba_volume[i, :, :, :]
-        
-        # Create composite image
-        bg = Image.fromarray(input_slice).convert('RGB')
-        overlay = Image.fromarray(seg_slice).convert('RGBA')
-        composite = Image.alpha_composite(bg.convert('RGBA'), overlay).convert('RGB')
-        
-        # Paste into grid
-        grid_img.paste(composite, (x, y))
+    legend_start_y = TITLE_HEIGHT + grid_content_h + (MARGIN if num_rows > 0 else 0) + 5
+    draw_horizontal_legend_pil(draw, legend_start_y, grid_w, legend_elements_for_grid, legend_font_pil)
     
     return grid_img
 
-# --- Initialize Session State ---
-if 'model_loaded' not in st.session_state: st.session_state.model_loaded = None
-if 'device' not in st.session_state: st.session_state.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-if 'patient_name' not in st.session_state: st.session_state.patient_name = "UnknownPatient"
-if 'current_date' not in st.session_state:
-    st.session_state.current_date = datetime.now().strftime("%d %B %Y, %H:%M:%S") + " (Local Time)"
-if 'language' not in st.session_state: st.session_state.language = "English"
+default_session_state = {
+    'model_loaded':None,'device':torch.device('cuda'if torch.cuda.is_available()else'cpu'),
+    'patient_name':"UnknownPatient",'current_date':datetime.now().strftime("%d %B %Y, %H:%M:%S")+" (Local)",
+    'language':"English",'use_header_dimensions_for_volume':True,'voxel_dim_x':1.0,'voxel_dim_y':1.0,'voxel_dim_z':1.0,
+    'prediction_label_dhw':None,'prediction_rgba_dhw4':None,'input_for_vis_np_hwd':None,
+    'output_affine':None,'output_header':None,'zip_buffer_pngs':None,'grid_image_buffer':None,'png_download_type':None,
+}
+for k,v in default_session_state.items():
+    if k not in st.session_state: st.session_state[k]=v
 
+def clear_segmentation_results():
+    keys=['prediction_label_dhw','prediction_rgba_dhw4','input_for_vis_np_hwd','output_affine','output_header',
+          'zip_buffer_pngs','grid_image_buffer','png_download_type']
+    for key in keys: st.session_state[key] = None
 
-import streamlit as st
+def apply_page_styling():
+    st.markdown(f"""<style>
+    .stApp {{
+        background-image: url("https://raw.githubusercontent.com/Vwoudka/segmed/main/.devcontainer/iStock-1452990966-modified-26cda7e8-4ee1-4a98-b681-f8a249f82c52-768x432.jpg");
+        background-size: contain; background-position: center center;
+        background-repeat: no-repeat; background-attachment: scroll;
+    }}
+    .main .block-container {{
+        background-color: #000000;
+        color: white !important;
+        border-radius:10px; padding:2rem; margin-top:2rem; margin-bottom:2rem;
+        box-shadow:0 4px 12px rgba(0,0,0,0.0); border:1px solid rgba(255,255,255,0.15);
+    }}
+    .main .block-container label,
+    .main .block-container .stMarkdown p,
+    .main .block-container .stMetricLabel,
+    .main .block-container .stMetricValue,
+    .main .block-container .stCaption,
+    .main .block-container .streamlit-expanderHeader p
+    {{
+        color: black !important;
+    }}
+    .main .block-container .stAlert *,
+    .main .block-container .stAlert a
+    {{
+        color: inherit !important;
+    }}
+    .main .block-container .stButton>button {{
+        color: #0E1117;
+    }}
+    .css-1d391kg, [data-testid="stSidebar"] {{
+        background-color:rgba(0,0,0,1)!important;
+    }}
+    </style>""", unsafe_allow_html=True)
 
-# ===== BACKGROUND IMAGE SETUP =====
-# Add this at the beginning of your main() function (before any other content)
-def main():
-    # Set background image
-    def set_background_image():
-        st.markdown(
-            f"""
-            <style>
-                .stApp {{
-                    background-image: url("https://raw.githubusercontent.com/Vwoudka/segmed/main/.devcontainer/iStock-1452990966-modified-26cda7e8-4ee1-4a98-b681-f8a249f82c52-768x432.jpg");
-                    background-size: contain;
-                    background-position: center center;
-                    background-repeat: no-repeat;
-                    background-attachment: scroll;
-                }}
-                /* Add semi-transparent overlay to make text more readable */
-                .main .block-container {{
-                    background-color: rgba(255, 255, 255, 0.9);
-                    border-radius: 10px;
-                    padding: 2rem;
-                    margin-top: 2rem;
-                    margin-bottom: 2rem;
-                }}
-                /* Adjust sidebar transparency */
-                .sidebar .sidebar-content {{
-                    background-color: rgba(255, 255, 255, 0.95);
-                }}
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
+def display_volumetric_analysis(label_vol_dhw, vox_vol_mm3, seg_map_dict, trans, dim_src_info):
+    st.subheader(trans["volumetric_analysis_header"])
+    st.caption(f"Voxel Dimensions Used: {dim_src_info}")
+    if not seg_map_dict: st.info("No labels for volume calculation."); return
 
-    set_background_image()
-    
-    # Rest of your existing code...
-    
-    # Your existing app code continues here...
-    st.title("    SegMed")
-    # ... rest of your app ...
+    num_metrics = len(seg_map_dict)
+    cols = st.columns(num_metrics if num_metrics > 0 else 1)
+    for i, (val, name_key) in enumerate(seg_map_dict.items()):
+        with cols[i % num_metrics]:
+            disp_name = trans["labels"].get(name_key, name_key)
+            vox_count = np.sum(label_vol_dhw == val)
+            vol_cm3 = (vox_count * vox_vol_mm3) / 1000.0
+            st.metric(label=disp_name, value=f"{vol_cm3:.2f} {trans.get('volume_label_unit','cm³')}")
 
 if __name__ == "__main__":
-    main()
-    # Create a sidebar container for the language selector
-    with st.sidebar:
-        # Language selector at the top of the sidebar
-        st.session_state.language = st.selectbox(
-            "Language", 
-            list(TRANSLATIONS.keys()), 
-            index=list(TRANSLATIONS.keys()).index(st.session_state.language),
-            key="language_selector"
-        )
-    
-    # Get current translations
+    st.set_page_config(page_title="SegMed",layout="wide",initial_sidebar_state="expanded")
+    apply_page_styling()
+
+    sel_lang = st.sidebar.selectbox("Language/Langue",list(TRANSLATIONS.keys()),
+        index=list(TRANSLATIONS.keys()).index(st.session_state.language),key="main_language_selector")
+    if sel_lang != st.session_state.language:
+        st.session_state.language=sel_lang; st.experimental_rerun()
     t = TRANSLATIONS[st.session_state.language]
     
-    # Main title and GitHub link
-    col1, col2 = st.columns([6, 1])
-    with col1:
-        st.title(t["title"])
-    with col2:
-        st.markdown("[<img src='https://github.githubassets.com/favicons/favicon.png' width='30'>](https://github.com/Vwoudka/segmed)", unsafe_allow_html=True)
-    
-    st.markdown(t["description"])
-    
-    # --- Rest of your existing sidebar content ---
+    try:
+        FONT_FOR_LEGEND_PIL = ImageFont.truetype("arial.ttf", 10)
+    except IOError:
+        FONT_FOR_LEGEND_PIL = ImageFont.load_default()
+
+    title_col, gh_col = st.columns([0.9,0.1])
+    with title_col: st.title(t["title"])
+    with gh_col: st.markdown("<div style='text-align:right;margin-top:20px;'><a href='https://github.com/Vwoudka/segmed' target='_blank'><img src='https://github.githubassets.com/favicons/favicon.png' width='30' alt='GitHub'></a></div>",unsafe_allow_html=True)
+    st.markdown(t["description"].format(TARGET_DEPTH=TARGET_DEPTH))
+
     st.sidebar.header(t["sidebar_header"])
-    st.sidebar.text_input(t["patient_id"], value=st.session_state.patient_name, key="patient_name_input_key", 
-                          on_change=lambda: setattr(st.session_state, 'patient_name', st.session_state.patient_name_input_key))
+    st.session_state.patient_name = st.sidebar.text_input(t["patient_id"],value=st.session_state.patient_name,key="patient_name_input")
 
     st.sidebar.subheader(t["unet_config"])
-    # ... rest of your existing code ...
+    p_in_c=st.sidebar.number_input(t["input_channels"],min_value=1,value=DEFAULT_IN_CHANNELS,key="param_in_channels")
+    p_out_c=st.sidebar.number_input(t["output_classes"],min_value=1,value=DEFAULT_OUT_CLASSES,key="param_out_classes")
+    p_base_f=st.sidebar.number_input(t["base_features"],min_value=8,value=DEFAULT_BASE_FEATURES,step=16,key="param_base_features")
 
-    param_in_channels = st.sidebar.number_input(t["input_channels"], min_value=1, value=DEFAULT_IN_CHANNELS, step=1, key="param_in_c")
-    param_out_classes = st.sidebar.number_input(t["output_classes"], min_value=1, value=DEFAULT_OUT_CLASSES, step=1, key="param_out_cls")
-    param_base_features = st.sidebar.number_input(t["base_features"], min_value=8, value=DEFAULT_BASE_FEATURES, step=16, key="param_base_f")
+    st.sidebar.subheader(t["voxel_dims_header"])
+    use_hdr_dims = st.sidebar.checkbox(t["use_header_dims_label"],value=st.session_state.use_header_dimensions_for_volume,key="use_header_dims_check")
+    st.session_state.use_header_dimensions_for_volume = use_hdr_dims
 
-    uploaded_model_file = st.sidebar.file_uploader(t["upload_model"], type=["pth"])
-
-    # Pretrained model button
-    st.sidebar.header(t["pretrained_model"])
-    if st.sidebar.button(t["load_pretrained"]):
-        PRETRAINED_MODEL_URL = "https://github.com/Vwoudka/segmed/raw/main/.devcontainer/Use%20This%20One_UNet3D_patients125_epochs20_batch1_depth130.pth"
-        
-        with st.spinner("Downloading pretrained model..."):
-            try:
-                import requests
-                response = requests.get(PRETRAINED_MODEL_URL)
-                response.raise_for_status()
-                
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pth") as tf_model:
-                    tf_model.write(response.content)
-                    model_path_temp = tf_model.name
-                
-                st.info("Loading U-Net with pretrained weights...")
-                model = UNet3D(in_channels=param_in_channels, out_channels=param_out_classes, 
-                              base_features=param_base_features)
-                model.load_state_dict(torch.load(model_path_temp, 
-                                              map_location=st.session_state.device,
-                                              weights_only=False))
-                os.remove(model_path_temp)
-                model.to(st.session_state.device).eval()
-                st.session_state.model_loaded = model
-                st.success("Pretrained model loaded successfully!")
-                
-            except Exception as e:
-                st.error(f"Failed to load pretrained model: {e}")
-                st.exception(e)
-                
-
-    # --- NIfTI File Uploaders ---
-    st.header(t["input_files"])
-    num_modality_uploaders = param_in_channels if param_in_channels > 0 else 1
-    modality_display_names = t["modality_names"] if param_in_channels == 4 else [f"Modality {j+1}" for j in range(num_modality_uploaders)]
-
-    cols_nifti = st.columns(num_modality_uploaders)
-    uploaded_nifti_files = [None] * num_modality_uploaders
-    for i in range(num_modality_uploaders):
-        with cols_nifti[i]:
-            uploaded_nifti_files[i] = st.file_uploader(f"Upload {modality_display_names[i]} (.nii.gz)", type=["nii.gz", "nii"], key=f"nifti_{i}")
-
-    # --- Model Loading ---
-    if uploaded_model_file is not None and st.session_state.model_loaded is None:
+    val_vx, val_vy, val_vz = st.session_state.voxel_dim_x, st.session_state.voxel_dim_y, st.session_state.voxel_dim_z
+    if use_hdr_dims and st.session_state.output_header:
         try:
-            st.info(f"Loading U-Net: In-Ch:{param_in_channels}, Out-Cls:{param_out_classes}, Base-Feat:{param_base_features}...")
-            model = UNet3D(in_channels=param_in_channels, out_channels=param_out_classes, base_features=param_base_features)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pth") as tf_model:
-                tf_model.write(uploaded_model_file.getvalue())
-                model_path_temp = tf_model.name
-            model.load_state_dict(torch.load(model_path_temp, map_location=st.session_state.device))
-            os.remove(model_path_temp) 
-            model.to(st.session_state.device).eval() 
-            st.session_state.model_loaded = model
-            st.success(f"Model loaded successfully and moved to {st.session_state.device}!")
-            for key_to_clear in ['prediction_rgba_dhw4', 'prediction_label_dhw', 'input_for_vis_np', 'output_affine', 'output_header', 'zip_buffer_pngs']:
-                if key_to_clear in st.session_state: del st.session_state[key_to_clear]
-        except Exception as e: 
-            st.error(f"Error loading model: {e}. Please ensure U-Net parameters match the model architecture."); st.exception(e)
-            st.session_state.model_loaded = None
+            hz=st.session_state.output_header.get_zooms()
+            val_vx,val_vy,val_vz=abs(float(hz[0])),abs(float(hz[1])),abs(float(hz[2]))
+            if not all(d > 1e-6 for d in (val_vx,val_vy,val_vz)):
+                val_vx,val_vy,val_vz = st.session_state.voxel_dim_x,st.session_state.voxel_dim_y,st.session_state.voxel_dim_z
+                st.sidebar.caption("Header dims zero/neg. Using manual.")
+        except Exception:
+            val_vx,val_vy,val_vz = st.session_state.voxel_dim_x,st.session_state.voxel_dim_y,st.session_state.voxel_dim_z
+            st.sidebar.caption("Header read failed. Using manual.")
 
-    # --- Segmentation Execution ---
-    if st.button(t["run_button"], disabled=(st.session_state.model_loaded is None or not all(uploaded_nifti_files))):
-        with st.spinner("Processing NIfTI files and running segmentation... This may take a moment."):
+    vox_cs=st.sidebar.columns(3)
+    man_vx_in=vox_cs[0].number_input(t["vox_x_label"],value=val_vx,format="%.4f",step=1e-4,disabled=use_hdr_dims,key="manual_vx_val_in")
+    man_vy_in=vox_cs[1].number_input(t["vox_y_label"],value=val_vy,format="%.4f",step=1e-4,disabled=use_hdr_dims,key="manual_vy_val_in")
+    man_vz_in=vox_cs[2].number_input(t["vox_z_label"],value=val_vz,format="%.4f",step=1e-4,disabled=use_hdr_dims,key="manual_vz_val_in")
+    if not use_hdr_dims:
+        st.session_state.voxel_dim_x,st.session_state.voxel_dim_y,st.session_state.voxel_dim_z = man_vx_in,man_vy_in,man_vz_in
+
+    up_model_f_obj = st.sidebar.file_uploader(t["upload_model"],type=["pth"],key="model_uploader_main")
+    st.sidebar.header(t["pretrained_model"])
+    if st.sidebar.button(t["load_pretrained"],key="load_example_model_main_btn"):
+        EX_URL="https://github.com/Vwoudka/segmed/raw/main/.devcontainer/Use%20This%20One_UNet3D_patients125_epochs20_batch1_depth130.pth"
+        st.warning(f"**Important Note:** The example pre-trained model was trained for a depth of **130 slices**. "
+                   f"Your current application `TARGET_DEPTH` is configured to **{TARGET_DEPTH} slices**. "
+                   f"This mismatch may lead to errors or inaccurate segmentation. "
+                   f"For optimal results, ensure the model architecture and training depth match the application settings.")
+        with st.spinner("Downloading example model..."):
             try:
-                processed_modalities, original_affines, original_headers = [], [], []
-                base_hw_shape = None 
-                
-                for i, uploaded_file_obj in enumerate(uploaded_nifti_files):
-                    st.info(f"Processing {modality_display_names[i]}...")
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".nii.gz") as tf_nifti:
-                        tf_nifti.write(uploaded_file_obj.getvalue())
-                        nifti_path_temp = tf_nifti.name
-                    
-                    volume, affine, header = load_nii_and_preprocess(nifti_path_temp, is_label=False)
-                    os.remove(nifti_path_temp) 
-                    
-                    if volume is None: st.error(f"Failed to process {modality_display_names[i]}. Segmentation aborted."); st.stop()
-                    
-                    if base_hw_shape is None: base_hw_shape = volume.shape[:2] 
-                    elif volume.shape[:2] != base_hw_shape: 
-                        st.error(f"{modality_display_names[i]} HxW shape {volume.shape[:2]} differs from first modality {base_hw_shape}. All must match."); st.stop()
-                    if volume.shape[2] != TARGET_DEPTH: 
-                        st.error(f"{modality_display_names[i]} processed depth {volume.shape[2]} != target depth {TARGET_DEPTH}. Aborting."); st.stop()
-                    
-                    processed_modalities.append(volume) 
-                    if i == 0: original_affines.append(affine); original_headers.append(header)
-                
-                stacked_modalities_np = np.stack(processed_modalities, axis=0)
-                input_volume_np_cdhw = stacked_modalities_np.transpose(0,3,1,2) 
-                
-                input_tensor = torch.from_numpy(np.expand_dims(input_volume_np_cdhw, axis=0)).float().to(st.session_state.device)
-                st.info(f"Input tensor shape for model: {input_tensor.shape} (N, C, D, H, W)")
+                import requests; r=requests.get(EX_URL);r.raise_for_status()
+                with tempfile.NamedTemporaryFile(delete=False,suffix=".pth")as tmp_f:tmp_f.write(r.content);pth=tmp_f.name
+                model=AttentionUNet3D(p_in_c,p_out_c,p_base_f); loaded_data=torch.load(pth,map_location=st.session_state.device)
+                if isinstance(loaded_data,dict)and 'model_state_dict'in loaded_data: model.load_state_dict(loaded_data['model_state_dict'])
+                else: model.load_state_dict(loaded_data)
+                os.remove(pth);model.to(st.session_state.device).eval();st.session_state.model_loaded=model
+                st.success("Example model loaded!"); clear_segmentation_results()
+            except RuntimeError as rte: st.error(f"Example model state_dict error. Architecture mismatch likely. Details: {rte}"); st.session_state.model_loaded=None; st.exception(rte)
+            except Exception as e:st.error(f"Example model load error: {e}");st.session_state.model_loaded=None; st.exception(e)
 
-                st.info("Running model inference...")
-                with torch.no_grad(): output_logits = st.session_state.model_loaded(input_tensor) 
-                
-                pred_labels_tensor = torch.argmax(output_logits.squeeze(0), dim=0) 
-                pred_labels_np_dhw = pred_labels_tensor.cpu().numpy().astype(np.uint8) 
-                st.session_state.prediction_label_dhw = pred_labels_np_dhw 
-                st.success("Segmentation labels generated!")
+    if up_model_f_obj and st.session_state.model_loaded is None:
+        with st.spinner("Loading uploaded model..."):
+            try:
+                with tempfile.NamedTemporaryFile(delete=False,suffix=".pth")as tmp_f:tmp_f.write(up_model_f_obj.getvalue());pth=tmp_f.name
+                model=AttentionUNet3D(p_in_c,p_out_c,p_base_f); loaded_data=torch.load(pth,map_location=st.session_state.device)
+                if isinstance(loaded_data,dict)and 'model_state_dict'in loaded_data: model.load_state_dict(loaded_data['model_state_dict'])
+                else: model.load_state_dict(loaded_data)
+                os.remove(pth);model.to(st.session_state.device).eval();st.session_state.model_loaded=model
+                st.success("Uploaded model loaded!"); clear_segmentation_results()
+            except RuntimeError as rte: st.error(f"Uploaded model state_dict error. Ensure model architecture (InstanceNorm affine, Conv bias, layer names) matches the .pth file. Details: {rte}"); st.session_state.model_loaded=None; st.exception(rte)
+            except Exception as e:st.error(f"Uploaded model load error: {e}");st.session_state.model_loaded=None; st.exception(e)
 
-                st.info("Converting labels to RGBA for visualization...")
-                pred_rgba_dhw4 = labels_to_rgba(pred_labels_np_dhw, param_out_classes, LABEL_TO_RGBA)
-                st.session_state.prediction_rgba_dhw4 = pred_rgba_dhw4 
-                
-                st.session_state.input_for_vis_np = processed_modalities[0] 
-                st.session_state.output_affine = original_affines[0]
-                st.session_state.output_header = original_headers[0]
-                st.success("Processing complete!")
+    st.header(t["input_files"])
+    num_uploaders=p_in_c if p_in_c>0 else 1; mod_t_names=t.get("modality_names",[])
+    uploader_disp_labels=[mod_t_names[j]if j<len(mod_t_names)else f"Modality {j+1}" for j in range(num_uploaders)]
+    nii_cols_upload=st.columns(num_uploaders); uploaded_nii_f_objs=[None]*num_uploaders
+    for i in range(num_uploaders):
+        with nii_cols_upload[i]:uploaded_nii_f_objs[i]=st.file_uploader(f"Upload {uploader_disp_labels[i]}",["nii.gz","nii"],key=f"nii_upload_widget_{i}")
 
-            except Exception as e:
-                st.error(f"An error occurred during segmentation: {e}"); st.exception(e)
-                for key_to_clear in ['prediction_rgba_dhw4', 'prediction_label_dhw']: 
-                    if key_to_clear in st.session_state: del st.session_state[key_to_clear]
+    if st.button(t["run_button"],disabled=(not st.session_state.model_loaded or not all(uploaded_nii_f_objs)),key="run_segmentation_main_btn"):
+        with st.spinner(f"Segmenting {TARGET_DEPTH} slices... This may take some time."):
+            clear_segmentation_results()
+            try:
+                proc_vols_list, aff_list, hdr_list = [],[],[]
+                for i, file_obj in enumerate(uploaded_nii_f_objs):
+                    st.info(f"Processing: {uploader_disp_labels[i]}...")
+                    with tempfile.NamedTemporaryFile(delete=False,suffix=".nii.gz") as temp_nii:temp_nii.write(file_obj.getvalue());temp_nii_p=temp_nii.name
+                    vol_hwd,aff_m,nii_hdr=load_nii_and_preprocess(temp_nii_p,False,TARGET_HW_SHAPE,(START_SLICE,END_SLICE))
+                    os.remove(temp_nii_p)
+                    if vol_hwd is None:st.error(f"Processing {uploader_disp_labels[i]} failed.");st.stop()
+                    proc_vols_list.append(vol_hwd);
+                    if i==0:aff_list.append(aff_m);hdr_list.append(nii_hdr)
 
-    # --- Display Results and Download Options ---
-    if 'prediction_label_dhw' in st.session_state and st.session_state.prediction_label_dhw is not None:
+                stacked_chwd=np.stack(proc_vols_list,axis=0); input_cdhw=stacked_chwd.transpose(0,3,1,2)
+                input_tensor=torch.from_numpy(np.expand_dims(input_cdhw,0)).float().to(st.session_state.device)
+                st.info(f"Model input tensor shape: {input_tensor.shape} (N,C,D,H,W)")
+                with torch.no_grad(): logits_ncdhw=st.session_state.model_loaded(input_tensor)
+
+                if logits_ncdhw.shape[2:]!=input_tensor.shape[2:]:
+                    st.warning(f"Model output DHW {logits_ncdhw.shape[2:]} differs from input {input_tensor.shape[2:]}. Interpolating.")
+                    logits_ncdhw=F.interpolate(logits_ncdhw,size=input_tensor.shape[2:],mode='trilinear',align_corners=False)
+
+                pred_labels_dhw_arr=torch.argmax(logits_ncdhw.squeeze(0),dim=0).cpu().numpy().astype(np.uint8)
+                st.session_state.prediction_label_dhw=pred_labels_dhw_arr
+                st.session_state.prediction_rgba_dhw4=labels_to_rgba(pred_labels_dhw_arr,p_out_c,LABEL_TO_RGBA)
+                st.session_state.input_for_vis_np_hwd=proc_vols_list[0]
+                st.session_state.output_affine=aff_list[0];st.session_state.output_header=hdr_list[0]
+                st.success("Segmentation complete!")
+            except Exception as e:st.error(f"Segmentation process error: {e}");st.exception(e);clear_segmentation_results()
+
+    if st.session_state.prediction_label_dhw is not None:
         st.header(t["results_header"])
-        
-        input_vis_dhw = np.transpose(st.session_state.input_for_vis_np, (2,0,1))
-        labels_dhw = st.session_state.prediction_label_dhw
-        rgba_dhw4 = st.session_state.prediction_rgba_dhw4
+        input_vis_hwd = st.session_state.input_for_vis_np_hwd
+        pred_labels_dhw = st.session_state.prediction_label_dhw
+        pred_rgba_dhw4 = st.session_state.prediction_rgba_dhw4
 
-        mid_d = labels_dhw.shape[0] // 2
-        mid_h = labels_dhw.shape[1] // 2
-        mid_w = labels_dhw.shape[2] // 2
+        mid_d, mid_h, mid_w = pred_labels_dhw.shape[0]//2, pred_labels_dhw.shape[1]//2, pred_labels_dhw.shape[2]//2
 
-        plot_views_corrected = {
-            "Axial": {
-                "input": input_vis_dhw[mid_d, :, :],
-                "rgba": rgba_dhw4[mid_d, :, :, :],
-                "title": f"Axial Slice: {mid_d + START_SLICE} (orig) / {mid_d} (proc)",
-                "aspect": "equal"
-            },
-            "Sagittal": { 
-                "input": input_vis_dhw[:, mid_h, :],
-                "rgba": rgba_dhw4[:, mid_h, :, :],
-                "title": f"Sagittal View (H-slice: {mid_h})",
-                "aspect": input_vis_dhw.shape[2] / input_vis_dhw.shape[0]
-            },
-            "Coronal": { 
-                "input": input_vis_dhw[:, :, mid_w],
-                "rgba": rgba_dhw4[:, :, mid_w, :],
-                "title": f"Coronal View (W-slice: {mid_w})",
-                "aspect": input_vis_dhw.shape[1] / input_vis_dhw.shape[0]
-            }
-        }
+        plot_configs = [
+            {"name":"Axial", "data":{"input":input_vis_hwd[:,:,mid_d], "rgba":pred_rgba_dhw4[mid_d,:,:,:], "title":f"Axial Slice: {mid_d+START_SLICE}(orig)/{mid_d}(proc)", "aspect":"equal"}},
+            {"name":"Sagittal", "data":{"input":input_vis_hwd[:,mid_w,:], "rgba":np.transpose(pred_rgba_dhw4[:,:,mid_w,:],(1,0,2)), "title":f"Sagittal (W-slice:{mid_w})", "aspect":input_vis_hwd.shape[2]/(input_vis_hwd.shape[0] or 1)}},
+            {"name":"Coronal", "data":{"input":input_vis_hwd[mid_h,:,:], "rgba":np.transpose(pred_rgba_dhw4[:,mid_h,:,:],(1,0,2)), "title":f"Coronal (H-slice:{mid_h})", "aspect":input_vis_hwd.shape[2]/(input_vis_hwd.shape[1] or 1)}}
+        ]
+        st.subheader(t["multi_view"]); vis_cols = st.columns(len(plot_configs))
+        for i, cfg in enumerate(plot_configs):
+            pd = cfg["data"]
+            with vis_cols[i]:
+                st.markdown(f"**{pd['title']}**")
+                fig, ax = plt.subplots(figsize=(5,5));
+                ax.imshow(pd["input"], cmap='gray', aspect=pd["aspect"])
+                ax.imshow(pd["rgba"], aspect=pd["aspect"])
+                ax.axis('off'); st.pyplot(fig); plt.close(fig)
 
-        st.subheader(t["multi_view"])
-        cols_vis = st.columns(len(plot_views_corrected))
+        st.subheader(t["legend_header"])
+        legend_html_items = []
+        bg_col_rgba = LABEL_TO_RGBA.get(0, (128,128,128,30))
+        legend_html_items.append(f"<div style='display:flex;align-items:center;'><div style='width:20px;height:20px;background-color:rgba({bg_col_rgba[0]},{bg_col_rgba[1]},{bg_col_rgba[2]},{bg_col_rgba[3]/255.0});margin-right:8px;border:1px dashed #aaa;'></div><span style='font-size:0.9em;'>{t['labels']['Background']}</span></div>")
+        for val, name_key in SEGMENTATION_LABELS_DICT.items():
+            color = LABEL_TO_RGBA.get(val, (0,0,0,255))
+            rgba_css_val = f"rgba({color[0]},{color[1]},{color[2]},{color[3]/255.0})"
+            disp_name = t['labels'].get(name_key, name_key)
+            legend_html_items.append(f"<div style='display:flex;align-items:center;'><div style='width:20px;height:20px;background-color:{rgba_css_val};margin-right:8px;border:1px solid #555;'></div><span style='font-size:0.9em;'>{disp_name}</span></div>")
 
-        for i, (view_name, data) in enumerate(plot_views_corrected.items()):
-            with cols_vis[i]:
-                st.markdown(f"**{data['title']}**")
-                fig, ax = plt.subplots(figsize=(6,6)) 
-                ax.imshow(data["input"], cmap='gray', aspect=data["aspect"])
-                ax.imshow(data["rgba"], aspect=data["aspect"]) 
-                ax.axis('off')
-                st.pyplot(fig)
-                plt.close(fig) 
+        legend_html_str = "".join(legend_html_items)
+        st.markdown(f"<div style='display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;align-items:center;gap:20px;padding:10px;background-color:rgba(70,70,70,0.85);border-radius:5px;'>{legend_html_str}</div>", unsafe_allow_html=True)
 
-        # Replace the legend section in your code with this:
+        voxel_volume_mm3, dim_source = 0.0, "N/A"
+        if st.session_state.use_header_dimensions_for_volume and st.session_state.output_header:
+            try:
+                zooms = st.session_state.output_header.get_zooms(); vx,vy,vz = abs(zooms[0]),abs(zooms[1]),abs(zooms[2])
+                if all(d > 1e-9 for d in (vx,vy,vz)): voxel_volume_mm3 = vx*vy*vz; dim_source=f"Header ({vx:.3f}x{vy:.3f}x{vz:.3f} mm)"
+                else: st.sidebar.caption("Warn: Header dims zero/neg.")
+            except Exception as e: st.sidebar.caption(f"Warn: Header zoom err: {e}")
 
-# --- After displaying results, show legend only when there's a segmentation ---
-if 'prediction_label_dhw' in st.session_state and st.session_state.prediction_label_dhw is not None:
-    st.subheader(t["legend_header"])
+        if voxel_volume_mm3 <= 1e-9:
+            mvx,mvy,mvz = st.session_state.voxel_dim_x,st.session_state.voxel_dim_y,st.session_state.voxel_dim_z
+            if all(d > 1e-9 for d in (mvx,mvy,mvz)): voxel_volume_mm3 = mvx*mvy*mvz; dim_source=f"Manual ({mvx:.3f}x{mvy:.3f}x{mvz:.3f} mm)"
+            else: dim_source = "Manual input dims invalid."
 
-    legend_html = """
-    <div style='display: flex; flex-wrap: wrap; gap: 15px; margin-bottom:20px; padding: 10px; background-color: #f0f2f6; border-radius: 5px;'>
-        <div style='display:flex;align-items:center;'>
-            <div style='width:20px;height:20px;background-color:rgba(128,128,128,0.1);margin-right:8px;border: 1px dashed #aaa;'></div>
-            <span style='font-size:0.9em;color: black;'>{background_label}</span>
-        </div>
-        <div style='display:flex;align-items:center;'>
-            <div style='width:20px;height:20px;background-color:rgba(255,0,0,1.00);margin-right:8px;border: 1px solid #555;'></div>
-            <span style='font-size:0.9em;color: black;'>{necrotic_label}</span>
-        </div>
-        <div style='display:flex;align-items:center;'>
-            <div style='width:20px;height:20px;background-color:rgba(0,255,0,1.00);margin-right:8px;border: 1px solid #555;'></div>
-            <span style='font-size:0.9em;color: black;'>{edema_label}</span>
-        </div>
-        <div style='display:flex;align-items:center;'>
-            <div style='width:20px;height:20px;background-color:rgba(255,255,0,1.00);margin-right:8px;border: 1px solid #555;'></div>
-            <span style='font-size:0.9em;color: black;'>{enhancing_label}</span>
-        </div>
-    </div>
-    """.format(
-        background_label=t["labels"]["Background"],
-        necrotic_label=t["labels"]["Necrotic"],
-        edema_label=t["labels"]["Edema"],
-        enhancing_label=t["labels"]["Enhancing"]
-    )
-    
-    st.markdown(legend_html, unsafe_allow_html=True)
-# --- In the download section, replace the current code with: ---
-st.header(t["download_header"])
-col_dl1, col_dl2 = st.columns(2)
+        if isinstance(voxel_volume_mm3,float) and voxel_volume_mm3 > 1e-9:
+            display_volumetric_analysis(pred_labels_dhw,voxel_volume_mm3,SEGMENTATION_LABELS_DICT,t,dim_source)
+        else: st.error(f"Voxel volume invalid ({dim_source}). Cannot calculate. Check NIfTI/manual input.")
 
-with col_dl1:
-    st.subheader(t["nifti_option"])
-    if 'prediction_label_dhw' in st.session_state and st.session_state.prediction_label_dhw is not None:
-        data_to_save_nifti = np.transpose(st.session_state.prediction_label_dhw, (1,2,0)).astype(np.uint8)
-        nifti_img_out = nib.Nifti1Image(data_to_save_nifti, st.session_state.output_affine, st.session_state.output_header)
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".nii.gz") as tmp_nifti_download_file:
-            nib.save(nifti_img_out, tmp_nifti_download_file.name)
-            tmp_nifti_download_path = tmp_nifti_download_file.name
-
-        with open(tmp_nifti_download_path, "rb") as fp:
-            st.download_button(
-                label=t["download_nifti"],
-                data=fp.read(), 
-                file_name=f"{st.session_state.patient_name}_segmentation_labels.nii.gz",
-                mime="application/gzip"
-            )
-        if os.path.exists(tmp_nifti_download_path): 
-            os.remove(tmp_nifti_download_path)
-    else:
-        st.info("NIfTI label map will be available after running segmentation")
-with col_dl2:
-    st.subheader(t["png_option"])
-    if 'prediction_label_dhw' in st.session_state and st.session_state.prediction_label_dhw is not None:
-        # Add format selection
-        png_format = st.radio(
-            "Select output format:",
-            ["Individual Slices (ZIP)", "13×10 Grid Image"],
-            key="png_format_selector"
-        )
-        
-        if st.button(t["prepare_png"]):
-            if png_format == "Individual Slices (ZIP)":
-                with st.spinner(f"Generating {TARGET_DEPTH} PNG slices for {st.session_state.patient_name}..."):
-                    try:
-                        zip_buffer = io.BytesIO()
-                        input_slices_hwd = st.session_state.input_for_vis_np 
-                        rgba_slices_dhw4 = st.session_state.prediction_rgba_dhw4
-                        label_slices_dhw = st.session_state.prediction_label_dhw
-    
-                        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                            for slice_idx_png in range(TARGET_DEPTH):
-                                current_input_slice_hw = input_slices_hwd[:, :, slice_idx_png]
-                                current_rgba_slice_hw4 = rgba_slices_dhw4[slice_idx_png, :, :, :]
-                                current_label_slice_hw = label_slices_dhw[slice_idx_png, :, :]
-    
-                                present_label_names = []
-                                for label_val, label_name_str in SEGMENTATION_LABELS_DICT.items():
-                                    if np.any(current_label_slice_hw == label_val):
-                                        present_label_names.append(label_name_str)
-                                
-                                labels_present_str = ", ".join(present_label_names) if present_label_names else "None"
-                                
-                                fig_png, ax_png = plt.subplots(figsize=(6,6))
-                                ax_png.imshow(current_input_slice_hw, cmap='gray', aspect='equal')
-                                ax_png.imshow(current_rgba_slice_hw4, aspect='equal')
-                                ax_png.axis('off')
-                                
-                                title_str = (f"Patient: {st.session_state.patient_name}\n"
-                                            f"Slice: {slice_idx_png + START_SLICE} (Original Index)\n"
-                                            f"Labels Present: {labels_present_str}")
-                                ax_png.set_title(title_str, fontsize=10)
-                                
-                                png_buf = io.BytesIO()
-                                fig_png.savefig(png_buf, format='png', dpi=100, bbox_inches='tight')
-                                plt.close(fig_png)
-                                png_buf.seek(0)
-                                
-                                safe_labels_str = "_".join(labels_present_str.split(", "))
-                                png_filename = f"{st.session_state.patient_name}_slice_{slice_idx_png + START_SLICE:03d}_{safe_labels_str or 'no_labels'}.png"
-                                zf.writestr(png_filename, png_buf.getvalue())
-                        
-                        zip_buffer.seek(0)
-                        st.session_state.zip_buffer_pngs = zip_buffer
-                        st.session_state.png_format = "zip"
-                        st.success(f"PNG ZIP archive ready for patient {st.session_state.patient_name}!")
-                        
-                    except Exception as e:
-                        st.error(f"Error generating PNG slices: {str(e)}")
-                        st.exception(e)
-    
-            elif png_format == "13×10 Grid Image":
-                with st.spinner("Creating 13×10 grid image..."):
-                    try:
-                        # Grid configuration
-                        SLICES_PER_ROW = 13
-                        ROWS = 10
-                        MARGIN = 5
-                        TITLE_HEIGHT = 60
-                        
-                        # Get data
-                        input_volume = st.session_state.input_for_vis_np  # (H,W,D)
-                        rgba_volume = st.session_state.prediction_rgba_dhw4  # (D,H,W,4)
-                        h, w = input_volume.shape[0], input_volume.shape[1]
-                        
-                        # Calculate grid dimensions
-                        grid_width = (w * SLICES_PER_ROW) + (MARGIN * (SLICES_PER_ROW - 1))
-                        grid_height = (h * ROWS) + (MARGIN * (ROWS - 1)) + TITLE_HEIGHT
-                        
-                        # Create blank image
-                        grid_img = Image.new('RGB', (grid_width, grid_height), color='white')
-                        draw = ImageDraw.Draw(grid_img)
-                        
-                        # Add title
+        st.header(t["download_header"]); dl_c1,dl_c2 = st.columns(2)
+        with dl_c1:
+            st.subheader(t["nifti_option"])
+            if st.session_state.output_affine is not None and st.session_state.output_header:
+                try:
+                    nii_data_hwd=np.transpose(pred_labels_dhw,(1,2,0)).astype(np.uint8)
+                    nii_img_obj=nib.Nifti1Image(nii_data_hwd,st.session_state.output_affine,st.session_state.output_header)
+                    nii_img_obj.set_filename("segmentation.nii.gz")
+                    bio_nii=io.BytesIO(nii_img_obj.to_bytes())
+                    st.download_button(t["download_nifti"],bio_nii,f"{st.session_state.patient_name}_seg.nii.gz","application/gzip",key="dl_nifti_main_btn")
+                except Exception as e: st.error(f"NIfTI prep error: {e}")
+        with dl_c2:
+            st.subheader(t["png_option"])
+            png_format_choice=st.radio("Format:",[t["grid_image_option_label"], t["png_individual_option_label"].format(TARGET_DEPTH=TARGET_DEPTH)],key="png_format_choice_radio")
+            if st.button(t["prepare_png"],key="prepare_png_main_btn"):
+                if png_format_choice==t["grid_image_option_label"]:
+                    with st.spinner("Generating grid image..."):
                         try:
-                            font = ImageFont.truetype("arial.ttf", 24)
-                        except:
-                            font = ImageFont.load_default()
-                        
-                        title = f"Patient: {st.session_state.patient_name} - Slice Grid (Total: {TARGET_DEPTH} slices)"
-                        draw.text((10, 10), title, font=font, fill='black')
-                        
-                        # Add slices to grid
-                        for i in range(min(TARGET_DEPTH, SLICES_PER_ROW * ROWS)):
-                            row = i // SLICES_PER_ROW
-                            col = i % SLICES_PER_ROW
-                            
-                            x = col * (w + MARGIN)
-                            y = TITLE_HEIGHT + row * (h + MARGIN)
-                            
-                            # Get slices
-                            input_slice = (input_volume[:, :, i] * 255).astype(np.uint8)
-                            seg_slice = rgba_volume[i, :, :, :]
-                            
-                            # Create composite
-                            bg = Image.fromarray(input_slice).convert('RGB')
-                            overlay = Image.fromarray(seg_slice).convert('RGBA')
-                            composite = Image.alpha_composite(bg.convert('RGBA'), overlay).convert('RGB')
-                            
-                            # Paste into grid
-                            grid_img.paste(composite, (x, y))
-                        
-                        # Save to buffer
-                        img_buffer = io.BytesIO()
-                        grid_img.save(img_buffer, format='PNG', quality=100)
-                        img_buffer.seek(0)
-                        
-                        st.session_state.grid_image_buffer = img_buffer
-                        st.session_state.png_format = "grid"
-                        st.success("13×10 grid image created successfully!")
-                        
-                        # Show preview
-                        st.image(grid_img, caption="Preview of 13×10 Grid", use_column_width=True)
-                        
-                    except Exception as e:
-                        st.error(f"Error creating grid image: {str(e)}")
-                        st.exception(e)
-    
-        # Download buttons
-        if 'png_format' in st.session_state:
-            if st.session_state.png_format == "zip" and 'zip_buffer_pngs' in st.session_state:
-                st.download_button(
-                    label=t["download_png"].format(st.session_state.patient_name),
-                    data=st.session_state.zip_buffer_pngs,
-                    file_name=f"{st.session_state.patient_name}_segmentation_slices.zip",
-                    mime="application/zip"
-                )
-            elif st.session_state.png_format == "grid" and 'grid_image_buffer' in st.session_state:
-                st.download_button(
-                    label="Download 13×10 Grid Image",
-                    data=st.session_state.grid_image_buffer,
-                    file_name=f"{st.session_state.patient_name}_slice_grid.png",
-                    mime="image/png"
-                )
-        else:
-            st.info("PNG slices will be available after running segmentation")
-          
-                
+                            grid_img_pil=create_slice_grid(input_vis_hwd,pred_rgba_dhw4,st.session_state.patient_name, t, FONT_FOR_LEGEND_PIL)
+                            bio_grid=io.BytesIO();grid_img_pil.save(bio_grid,'PNG',quality=95);bio_grid.seek(0)
+                            st.session_state.grid_image_buffer=bio_grid;st.session_state.png_download_type="grid"
+                            st.image(grid_img_pil,caption=f"Preview ({TARGET_DEPTH} slices with legend)",use_column_width=True);st.success("Grid ready.")
+                        except Exception as e:st.error(f"Grid image error: {e}")
+                else: 
+                    with st.spinner(f"Generating {TARGET_DEPTH} PNGs with legends for ZIP..."):
+                        try:
+                            zip_bio_out=io.BytesIO()
+                            with zipfile.ZipFile(zip_bio_out,"w",zipfile.ZIP_DEFLATED) as zf_out:
+                                for idx in range(TARGET_DEPTH):
+                                    slice_in_hw=input_vis_hwd[:,:,idx]; slice_rgba_hw4=pred_rgba_dhw4[idx,:,:,:]; slice_lbl_hw=pred_labels_dhw[idx,:,:]
+                                    unique_lbl_vals=np.unique(slice_lbl_hw)
+                                    present_lbl_names=[SEGMENTATION_LABELS_DICT[val] for val in unique_lbl_vals if val in SEGMENTATION_LABELS_DICT]
+                                    labels_found_str=", ".join(present_lbl_names) if present_lbl_names else "No Tumor Labels"
 
-    st.markdown("---")
-    st.markdown(f"Timestamp: {st.session_state.current_date}")
+                                    # <<< MODIFIED: Adjusted figsize and subplots_adjust for tighter layout >>>
+                                    fig_png_slice, ax_png_slice = plt.subplots(figsize=(6, 6.2), dpi=150)
+                                    fig_png_slice.patch.set_facecolor('white')
 
-if __name__ == "__main__":
-    main()
+                                    ax_png_slice.imshow(slice_in_hw, cmap='gray', aspect='equal')
+                                    ax_png_slice.imshow(slice_rgba_hw4, aspect='equal')
+                                    ax_png_slice.axis('off')
+                                    ax_png_slice.set_title(f"Patient: {st.session_state.patient_name}\nSlice: {idx+START_SLICE}(orig)/{idx}(proc) | Labels: {labels_found_str}", fontsize=7, color='black')
+
+                                    legend_patches = []
+                                    bg_label_text = t['labels'].get("Background", "Background")
+                                    bg_color_rgba = (0.8, 0.8, 0.8, 1.0)
+                                    legend_patches.append(mpatches.Patch(color=bg_color_rgba, label=bg_label_text))
+                                    for label_val, label_name_key in SEGMENTATION_LABELS_DICT.items():
+                                        text_label = t['labels'].get(label_name_key, label_name_key)
+                                        color_rgba = np.array(LABEL_TO_RGBA.get(label_val, (0,0,0,255))) / 255.0
+                                        legend_patches.append(mpatches.Patch(color=color_rgba, label=text_label))
+                                    
+                                    fig_png_slice.legend(handles=legend_patches, loc='lower center', ncol=len(legend_patches), 
+                                                         bbox_to_anchor=(0.5, 0.01), frameon=False, fontsize='x-small')
+                                    fig_png_slice.subplots_adjust(bottom=0.12, top=0.9) # Adjusted bottom and top
+                                    # <<< END OF MODIFICATION >>>
+
+                                    png_byte_buffer=io.BytesIO()
+                                    fig_png_slice.savefig(png_byte_buffer,format='png',bbox_inches='tight', facecolor=fig_png_slice.get_facecolor()); plt.close(fig_png_slice); png_byte_buffer.seek(0)
+
+                                    fn_safe_labels="_".join(labels_found_str.replace("/","-").split(", ")).replace(" ","_") if present_lbl_names else "NoTumor"
+                                    zf_out.writestr(f"{st.session_state.patient_name}_slice_{idx+START_SLICE:03d}_{fn_safe_labels}.png",png_byte_buffer.getvalue())
+                            st.session_state.zip_buffer_pngs=zip_bio_out;st.session_state.png_download_type="zip";st.success("ZIP archive ready.")
+                        except Exception as e:st.error(f"PNG ZIP creation error: {e}"); st.exception(e)
+
+            if st.session_state.png_download_type=="grid" and st.session_state.grid_image_buffer:
+                st.download_button(t["download_grid_image_label"],st.session_state.grid_image_buffer,f"{st.session_state.patient_name}_slice_grid.png","image/png",key="dl_grid_img_main_btn")
+            elif st.session_state.png_download_type=="zip" and st.session_state.zip_buffer_pngs:
+                st.download_button(t["download_png"].format(st.session_state.patient_name),st.session_state.zip_buffer_pngs,f"{st.session_state.patient_name}_slices_legend.zip","application/zip",key="dl_zip_archive_main_btn")
+    else:
+        st.info("Segmentation results, volumetric analysis, and download options will appear here after running segmentation.")
+
+    st.markdown("---");st.markdown(f"Timestamp: {st.session_state.current_date}");st.caption(f"{t['running_on']}: {st.session_state.device}")
