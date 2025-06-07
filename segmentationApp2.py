@@ -14,6 +14,7 @@ import zipfile
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 import math
+import gdown # <-- IMPORT GDOWN
 
 # --- Configuration ---
 DEFAULT_IN_CHANNELS = 4
@@ -534,28 +535,47 @@ if __name__ == "__main__":
     up_model_f_obj = st.sidebar.file_uploader(t["upload_model"],type=["pth"],key="model_uploader_main")
     st.sidebar.header(t["pretrained_model"])
     if st.sidebar.button(t["load_pretrained"],key="load_example_model_main_btn"):
-        EX_URL="https://github.com/Vwoudka/segmed/raw/main/.devcontainer/Use%20This%20One_UNet3D_patients125_epochs20_batch1_depth130.pth"
-        st.warning(f"**Important Note:** The example pre-trained model was trained for a depth of **130 slices**. "
-                   f"Your current application `TARGET_DEPTH` is configured to **{TARGET_DEPTH} slices**. "
-                   f"This mismatch may lead to errors or inaccurate segmentation. "
-                   f"For optimal results, ensure the model architecture and training depth match the application settings.")
-        with st.spinner("Downloading example model..."):
+        GDRIVE_FILE_ID = "1nYmcyYQPkfxXFGdh9i2QVeakYNvdS4yH"
+                           
+        with st.spinner("Downloading example model from Google Drive..."):
             try:
-                import requests; r=requests.get(EX_URL);r.raise_for_status()
-                with tempfile.NamedTemporaryFile(delete=False,suffix=".pth")as tmp_f:tmp_f.write(r.content);pth=tmp_f.name
-                model=AttentionUNet3D(p_in_c,p_out_c,p_base_f); loaded_data=torch.load(pth,map_location=st.session_state.device)
-                if isinstance(loaded_data,dict)and 'model_state_dict'in loaded_data: model.load_state_dict(loaded_data['model_state_dict'])
-                else: model.load_state_dict(loaded_data)
-                os.remove(pth);model.to(st.session_state.device).eval();st.session_state.model_loaded=model
-                st.success("Example model loaded!"); clear_segmentation_results()
-            except RuntimeError as rte: st.error(f"Example model state_dict error. Architecture mismatch likely. Details: {rte}"); st.session_state.model_loaded=None; st.exception(rte)
-            except Exception as e:st.error(f"Example model load error: {e}");st.session_state.model_loaded=None; st.exception(e)
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pth") as tmp_f:
+                    pth = tmp_f.name
+
+                # --- MODIFICATION START: Use gdown for robust download ---
+                gdown.download(id=GDRIVE_FILE_ID, output=pth, quiet=False)
+                # --- MODIFICATION END ---
+
+                model = AttentionUNet3D(p_in_c, p_out_c, p_base_f)
+                loaded_data = torch.load(pth, map_location=st.session_state.device, weights_only=False)
+                
+                if isinstance(loaded_data, dict) and 'model_state_dict' in loaded_data:
+                    model.load_state_dict(loaded_data['model_state_dict'])
+                else:
+                    model.load_state_dict(loaded_data)
+                    
+                os.remove(pth)
+                model.to(st.session_state.device).eval()
+                st.session_state.model_loaded = model
+                st.success("Example model loaded!")
+                clear_segmentation_results()
+                
+            except Exception as e:
+                st.error(f"Example model load error: {e}")
+                if os.path.exists(pth):
+                    os.remove(pth)
+                st.session_state.model_loaded = None
+                st.exception(e)
 
     if up_model_f_obj and st.session_state.model_loaded is None:
         with st.spinner("Loading uploaded model..."):
             try:
-                with tempfile.NamedTemporaryFile(delete=False,suffix=".pth")as tmp_f:tmp_f.write(up_model_f_obj.getvalue());pth=tmp_f.name
-                model=AttentionUNet3D(p_in_c,p_out_c,p_base_f); loaded_data=torch.load(pth,map_location=st.session_state.device)
+                with tempfile.NamedTemporaryFile(delete=False,suffix=".pth")as tmp_f:
+                    tmp_f.write(up_model_f_obj.getvalue())
+                    pth=tmp_f.name
+                model=AttentionUNet3D(p_in_c,p_out_c,p_base_f)
+                loaded_data=torch.load(pth,map_location=st.session_state.device, weights_only=False)
+                
                 if isinstance(loaded_data,dict)and 'model_state_dict'in loaded_data: model.load_state_dict(loaded_data['model_state_dict'])
                 else: model.load_state_dict(loaded_data)
                 os.remove(pth);model.to(st.session_state.device).eval();st.session_state.model_loaded=model
