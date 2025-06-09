@@ -263,18 +263,17 @@ class AttentionUNet3D(nn.Module):
 
 
 # --- Utility Functions ---
-# <<< MODIFICATION: Changed function signature to accept filename for error logging >>>
-def load_nii_and_preprocess(file_source, filename, is_label=False, target_hw_shape=TARGET_HW_SHAPE, slice_range=(START_SLICE, END_SLICE)):
+# <<< MODIFICATION: Reverted function to accept a file path, as nibabel requires it. >>>
+def load_nii_and_preprocess(file_path, is_label=False, target_hw_shape=TARGET_HW_SHAPE, slice_range=(START_SLICE, END_SLICE)):
     try:
-        # nibabel can load from a file-like object (e.g., BytesIO)
-        img = nib.load(file_source)
+        img = nib.load(file_path)
         data = np.array(img.dataobj, dtype=(np.int64 if is_label else np.float32))
         s_start, s_end = slice_range
         target_d = s_end - s_start
 
         if data.ndim == 4 and data.shape[3] == 1: data = np.squeeze(data, axis=3)
         if data.ndim != 3:
-            st.warning(f"File {filename}: unexpected dimensions {data.shape}. Expected 3D array."); return None, None, None
+            st.warning(f"File {os.path.basename(file_path)}: unexpected dimensions {data.shape}. Expected 3D array."); return None, None, None
 
         current_h_orig, current_w_orig, current_depth_orig = data.shape
 
@@ -305,7 +304,7 @@ def load_nii_and_preprocess(file_source, filename, is_label=False, target_hw_sha
                 resized_slices.append(resized_slice.astype(data.dtype))
 
         if not resized_slices and target_d > 0:
-            st.error(f"File {filename}: No slices generated, target depth {target_d}."); return None,None,None
+            st.error(f"File {os.path.basename(file_path)}: No slices generated, target depth {target_d}."); return None,None,None
 
         final_volume_hwd = np.stack(resized_slices, axis=-1) if resized_slices else \
                            np.zeros((target_hw_shape[0], target_hw_shape[1], 0), dtype=data.dtype)
@@ -316,11 +315,11 @@ def load_nii_and_preprocess(file_source, filename, is_label=False, target_hw_sha
 
         expected_shape = (target_hw_shape[0], target_hw_shape[1], target_d)
         if final_volume_hwd.shape != expected_shape:
-            st.error(f"File {filename}: Final shape {final_volume_hwd.shape} != expected {expected_shape}."); return None,None,None
+            st.error(f"File {os.path.basename(file_path)}: Final shape {final_volume_hwd.shape} != expected {expected_shape}."); return None,None,None
         return final_volume_hwd, img.affine, img.header
     except Exception as e:
-        # <<< MODIFICATION: Use the 'filename' variable for the error message >>>
-        st.error(f"Error processing NIfTI {filename}: {e}"); st.exception(e); return None,None,None
+        # This now works because file_path is a string again
+        st.error(f"Error processing NIfTI {os.path.basename(file_path)}: {e}"); st.exception(e); return None,None,None
 
 
 # ... (The rest of the utility, state, and styling functions are unchanged) ...
@@ -488,7 +487,7 @@ def display_volumetric_analysis(label_vol_dhw, vox_vol_mm3, seg_map_dict, trans,
             vol_cm3 = (vox_count * vox_vol_mm3) / 1000.0
             st.metric(label=disp_name, value=f"{vol_cm3:.2f} {trans.get('volume_label_unit','cm³')}")
 
-# <<< MODIFICATION: New cached function for model loading >>>
+# Cached function for model loading
 @st.cache_resource
 def load_model_cached(model_source, arch_params, device):
     """
@@ -610,12 +609,20 @@ if __name__ == "__main__":
                 proc_vols_list, aff_list, hdr_list = [],[],[]
                 for i, file_obj in enumerate(uploaded_nii_f_objs):
                     st.info(f"Processing: {uploader_disp_labels[i]}...")
-                    # <<< MODIFICATION: Pass both the memory buffer and the filename to the function >>>
-                    vol_hwd,aff_m,nii_hdr=load_nii_and_preprocess(io.BytesIO(file_obj.getvalue()), file_obj.name, False,TARGET_HW_SHAPE,(START_SLICE,END_SLICE))
+                    # <<< MODIFICATION: Use a temporary file on disk, which is guaranteed to be a path. >>>
+                    with tempfile.NamedTemporaryFile(delete=True, suffix=".nii.gz") as temp_nii:
+                        temp_nii.write(file_obj.getvalue())
+                        temp_nii_path = temp_nii.name
+                        # Pass the path to the processing function
+                        vol_hwd, aff_m, nii_hdr = load_nii_and_preprocess(temp_nii_path, False, TARGET_HW_SHAPE, (START_SLICE, END_SLICE))
 
-                    if vol_hwd is None:st.error(f"Processing {uploader_disp_labels[i]} failed.");st.stop()
-                    proc_vols_list.append(vol_hwd);
-                    if i==0:aff_list.append(aff_m);hdr_list.append(nii_hdr)
+                    if vol_hwd is None:
+                        st.error(f"Processing {uploader_disp_labels[i]} failed.");
+                        st.stop()
+                    proc_vols_list.append(vol_hwd)
+                    if i==0:
+                        aff_list.append(aff_m)
+                        hdr_list.append(nii_hdr)
 
                 st.info("Preparing data tensor for the model...")
                 stacked_chwd=np.stack(proc_vols_list,axis=0)
@@ -642,8 +649,10 @@ if __name__ == "__main__":
                 st.session_state.prediction_label_dhw=pred_labels_dhw_arr
                 st.session_state.prediction_rgba_dhw4=labels_to_rgba(pred_labels_dhw_arr,p_out_c,LABEL_TO_RGBA)
 
-                # <<< MODIFICATION: Also pass the filename here for the visualization data >>>
-                st.session_state.input_for_vis_np_hwd, _, _ = load_nii_and_preprocess(io.BytesIO(uploaded_nii_f_objs[0].getvalue()), uploaded_nii_f_objs[0].name, False,TARGET_HW_SHAPE,(START_SLICE,END_SLICE))
+                # Get visualization data by reloading the first NIfTI file in the same way
+                with tempfile.NamedTemporaryFile(delete=True, suffix=".nii.gz") as temp_nii_vis:
+                    temp_nii_vis.write(uploaded_nii_f_objs[0].getvalue())
+                    st.session_state.input_for_vis_np_hwd, _, _ = load_nii_and_preprocess(temp_nii_vis.name, False,TARGET_HW_SHAPE,(START_SLICE,END_SLICE))
 
                 st.session_state.output_affine=aff_list[0];st.session_state.output_header=hdr_list[0]
                 st.success("Segmentation complete!")
@@ -658,6 +667,7 @@ if __name__ == "__main__":
         pred_labels_dhw = st.session_state.prediction_label_dhw
         pred_rgba_dhw4 = st.session_state.prediction_rgba_dhw4
 
+        # ... (rest of your results display code, which is unchanged) ...
         mid_d, mid_h, mid_w = pred_labels_dhw.shape[0]//2, pred_labels_dhw.shape[1]//2, pred_labels_dhw.shape[2]//2
 
         plot_configs = [
