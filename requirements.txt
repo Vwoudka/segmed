@@ -8,3 +8,4 @@ torch
 torchvision
 torchaudio
 numpy>2.0
+gc
