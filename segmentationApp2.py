@@ -14,7 +14,7 @@ import zipfile
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 import math
-import gdown 
+import gdown
 
 # --- Configuration ---
 DEFAULT_IN_CHANNELS = 4
@@ -331,9 +331,11 @@ def draw_horizontal_legend_pil(draw, start_y, image_width, legend_elements, font
 
     for item in legend_elements:
         try:
+            # Modern PIL/Pillow uses textbbox
             text_bbox = draw.textbbox((0,0), item['label'], font=font)
             text_width = text_bbox[2] - text_bbox[0]
         except AttributeError:
+            # Older versions use getsize
             text_width = font.getsize(item['label'])[0]
 
         item_width = box_size + text_offset + text_width
@@ -348,10 +350,12 @@ def draw_horizontal_legend_pil(draw, start_y, image_width, legend_elements, font
 
     for i, item in enumerate(legend_elements):
         try:
+             # Modern PIL/Pillow uses getmetrics
             ascent, descent = font.getmetrics()
             text_height_approx = ascent + descent
         except AttributeError:
-             text_height_approx = font.getsize("A")[1]
+             # Older versions use getsize
+            text_height_approx = font.getsize("A")[1]
 
 
         box_y_offset = (text_height_approx - box_size) / 2
@@ -496,9 +500,14 @@ if __name__ == "__main__":
     except IOError:
         FONT_FOR_LEGEND_PIL = ImageFont.load_default()
 
-    title_col, gh_col = st.columns([0.9,0.1])
-    with title_col: st.title(t["title"])
-    with gh_col: st.markdown("<div style='text-align:right;margin-top:20px;'><a href='https://github.com/Vwoudka/segmed' target='_blank'><img src='https://github.githubassets.com/favicons/favicon.png' width='30' alt='GitHub'></a></div>",unsafe_allow_html=True)
+    logo_url = "https://raw.githubusercontent.com/Vwoudka/segmed/main/.devcontainer/Capture%20d%27%C3%A9cran%202025-01-19%20114629.png"
+    logo_col, title_col, gh_col = st.columns([0.2, 0.7, 0.1])
+    with logo_col:
+        st.image(logo_url, width=150)
+    with title_col:
+        st.title(t["title"])
+    with gh_col:
+        st.markdown("<div style='text-align:right;margin-top:20px;'><a href='https://github.com/Vwoudka/segmed' target='_blank'><img src='https://github.githubassets.com/favicons/favicon.png' width='30' alt='GitHub'></a></div>",unsafe_allow_html=True)
     st.markdown(t["description"].format(TARGET_DEPTH=TARGET_DEPTH))
 
     st.sidebar.header(t["sidebar_header"])
@@ -536,52 +545,61 @@ if __name__ == "__main__":
     st.sidebar.header(t["pretrained_model"])
     if st.sidebar.button(t["load_pretrained"],key="load_example_model_main_btn"):
         GDRIVE_FILE_ID = "1nYmcyYQPkfxXFGdh9i2QVeakYNvdS4yH"
-                           
+        pth = None # Initialize path to None
         with st.spinner("Downloading example model from Google Drive..."):
             try:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pth") as tmp_f:
                     pth = tmp_f.name
-
-
                 gdown.download(id=GDRIVE_FILE_ID, output=pth, quiet=False)
-
-
                 model = AttentionUNet3D(p_in_c, p_out_c, p_base_f)
+                # Using weights_only=False can be a security risk if the file is not from a trusted source.
                 loaded_data = torch.load(pth, map_location=st.session_state.device, weights_only=False)
-                
                 if isinstance(loaded_data, dict) and 'model_state_dict' in loaded_data:
                     model.load_state_dict(loaded_data['model_state_dict'])
                 else:
                     model.load_state_dict(loaded_data)
-                    
-                os.remove(pth)
                 model.to(st.session_state.device).eval()
                 st.session_state.model_loaded = model
                 st.success("Example model loaded!")
                 clear_segmentation_results()
-                
             except Exception as e:
                 st.error(f"Example model load error: {e}")
-                if os.path.exists(pth):
-                    os.remove(pth)
                 st.session_state.model_loaded = None
                 st.exception(e)
+            finally:
+                # Ensure the temporary file is removed in all cases (success or failure)
+                if pth and os.path.exists(pth):
+                    os.remove(pth)
 
     if up_model_f_obj and st.session_state.model_loaded is None:
+        pth = None # Initialize path to None
         with st.spinner("Loading uploaded model..."):
             try:
-                with tempfile.NamedTemporaryFile(delete=False,suffix=".pth")as tmp_f:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pth") as tmp_f:
                     tmp_f.write(up_model_f_obj.getvalue())
-                    pth=tmp_f.name
-                model=AttentionUNet3D(p_in_c,p_out_c,p_base_f)
-                loaded_data=torch.load(pth,map_location=st.session_state.device, weights_only=False)
-                
-                if isinstance(loaded_data,dict)and 'model_state_dict'in loaded_data: model.load_state_dict(loaded_data['model_state_dict'])
-                else: model.load_state_dict(loaded_data)
-                os.remove(pth);model.to(st.session_state.device).eval();st.session_state.model_loaded=model
-                st.success("Uploaded model loaded!"); clear_segmentation_results()
-            except RuntimeError as rte: st.error(f"Uploaded model state_dict error. Ensure model architecture (InstanceNorm affine, Conv bias, layer names) matches the .pth file. Details: {rte}"); st.session_state.model_loaded=None; st.exception(rte)
-            except Exception as e:st.error(f"Uploaded model load error: {e}");st.session_state.model_loaded=None; st.exception(e)
+                    pth = tmp_f.name
+                model = AttentionUNet3D(p_in_c, p_out_c, p_base_f)
+                loaded_data = torch.load(pth, map_location=st.session_state.device, weights_only=False)
+                if isinstance(loaded_data, dict) and 'model_state_dict' in loaded_data:
+                    model.load_state_dict(loaded_data['model_state_dict'])
+                else:
+                    model.load_state_dict(loaded_data)
+                model.to(st.session_state.device).eval()
+                st.session_state.model_loaded = model
+                st.success("Uploaded model loaded!")
+                clear_segmentation_results()
+            except RuntimeError as rte:
+                st.error(f"Uploaded model state_dict error. Ensure model architecture (InstanceNorm affine, Conv bias, layer names) matches the .pth file. Details: {rte}")
+                st.session_state.model_loaded = None
+                st.exception(rte)
+            except Exception as e:
+                st.error(f"Uploaded model load error: {e}")
+                st.session_state.model_loaded = None
+                st.exception(e)
+            finally:
+                # Ensure the temporary file is removed in all cases
+                if pth and os.path.exists(pth):
+                    os.remove(pth)
 
     st.header(t["input_files"])
     num_uploaders=p_in_c if p_in_c>0 else 1; mod_t_names=t.get("modality_names",[])
@@ -597,7 +615,9 @@ if __name__ == "__main__":
                 proc_vols_list, aff_list, hdr_list = [],[],[]
                 for i, file_obj in enumerate(uploaded_nii_f_objs):
                     st.info(f"Processing: {uploader_disp_labels[i]}...")
-                    with tempfile.NamedTemporaryFile(delete=False,suffix=".nii.gz") as temp_nii:temp_nii.write(file_obj.getvalue());temp_nii_p=temp_nii.name
+                    with tempfile.NamedTemporaryFile(delete=False,suffix=".nii.gz") as temp_nii:
+                        temp_nii.write(file_obj.getvalue())
+                        temp_nii_p=temp_nii.name
                     vol_hwd,aff_m,nii_hdr=load_nii_and_preprocess(temp_nii_p,False,TARGET_HW_SHAPE,(START_SLICE,END_SLICE))
                     os.remove(temp_nii_p)
                     if vol_hwd is None:st.error(f"Processing {uploader_disp_labels[i]} failed.");st.stop()
