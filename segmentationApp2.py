@@ -14,9 +14,10 @@ import zipfile
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 import math
-import gdown # <-- IMPORT GDOWN
+import gdown
+import gc # <<< MODIFICATION: Imported the garbage collector
 
-# --- Configuration ---
+# --- Configuration (UNCHANGED) ---
 DEFAULT_IN_CHANNELS = 4
 DEFAULT_OUT_CLASSES = 4 # Incl. background
 DEFAULT_BASE_FEATURES = 32
@@ -25,11 +26,11 @@ START_SLICE = 0
 END_SLICE = 182
 TARGET_DEPTH = END_SLICE - START_SLICE # This is 182
 
-# --- Label and Color Definitions ---
+# --- Label and Color Definitions (UNCHANGED) ---
 LABEL_TO_RGBA = {
-    0: (0, 0, 0, 0),      # Background
-    1: (255, 0, 0, 255),  # Necrotic (Red)
-    2: (0, 255, 0, 255),  # Edema (Green)
+    0: (0, 0, 0, 0),       # Background
+    1: (255, 0, 0, 255),   # Necrotic (Red)
+    2: (0, 255, 0, 255),   # Edema (Green)
     3: (255, 255, 0, 255), # Enhancing (Yellow)
 }
 SEGMENTATION_LABELS_DICT = {
@@ -38,7 +39,7 @@ SEGMENTATION_LABELS_DICT = {
     3: "Enhancing",
 }
 
-# --- Translations  ---
+# --- Translations (UNCHANGED) ---
 TRANSLATIONS = {
     "English": {
         "title": "3D Brain Tumour Segmentation",
@@ -146,7 +147,8 @@ TRANSLATIONS = {
     }
 }
 
-# --- Model Definition ---
+
+# --- Model Definition (UNCHANGED) ---
 class AttentionGate3D(nn.Module):
     def __init__(self, F_g, F_l, F_int):
         super(AttentionGate3D, self).__init__()
@@ -259,7 +261,8 @@ class AttentionUNet3D(nn.Module):
         logits = self.final_conv(dec1)
         return logits
 
-# --- Utility Functions ---
+
+# --- Utility Functions (UNCHANGED) ---
 def load_nii_and_preprocess(file_path, is_label=False, target_hw_shape=TARGET_HW_SHAPE, slice_range=(START_SLICE, END_SLICE)):
     try:
         img = nib.load(file_path)
@@ -342,7 +345,7 @@ def draw_horizontal_legend_pil(draw, start_y, image_width, legend_elements, font
 
     if legend_elements:
         total_legend_width += item_spacing * (len(legend_elements) - 1)
-    
+
     current_x = (image_width - total_legend_width) / 2
     if current_x < 5: current_x = 5
 
@@ -351,8 +354,7 @@ def draw_horizontal_legend_pil(draw, start_y, image_width, legend_elements, font
             ascent, descent = font.getmetrics()
             text_height_approx = ascent + descent
         except AttributeError:
-             text_height_approx = font.getsize("A")[1]
-
+            text_height_approx = font.getsize("A")[1]
 
         box_y_offset = (text_height_approx - box_size) / 2
         box_y = start_y + box_y_offset
@@ -377,7 +379,7 @@ def create_slice_grid(input_volume_hwd, rgba_volume_dhw4, patient_name, t, legen
     num_rows = math.ceil(TOTAL_SLICES / SLICES_PER_ROW)
     grid_content_w = (IMG_W * SLICES_PER_ROW) + (MARGIN * (SLICES_PER_ROW - 1))
     grid_content_h = (IMG_H * num_rows) + (MARGIN * (num_rows - 1))
-    
+
     grid_w = max(grid_content_w, 300)
     grid_h = TITLE_HEIGHT + grid_content_h + LEGEND_AREA_HEIGHT
 
@@ -388,7 +390,7 @@ def create_slice_grid(input_volume_hwd, rgba_volume_dhw4, patient_name, t, legen
         title_font = ImageFont.truetype("arial.ttf", 24)
     except IOError:
         title_font = ImageFont.load_default()
-    
+
     draw.text((10, 10), f"Pt: {patient_name} - {TOTAL_SLICES} slices ({SLICES_PER_ROW}x{num_rows})", font=title_font, fill='black')
 
     for i in range(TOTAL_SLICES):
@@ -397,10 +399,10 @@ def create_slice_grid(input_volume_hwd, rgba_volume_dhw4, patient_name, t, legen
 
         slice_data_float = input_volume_hwd[:, :, i]
         base_img_pil = Image.fromarray((slice_data_float * 255).astype(np.uint8)).convert('RGBA')
-        
+
         segslice_np = rgba_volume_dhw4[i, :, :, :]
         overlay_pil = Image.fromarray(segslice_np).convert('RGBA')
-        
+
         composite_pil = Image.alpha_composite(base_img_pil, overlay_pil)
         grid_img.paste(composite_pil.convert('RGB'), (int(px), int(py)))
 
@@ -411,12 +413,14 @@ def create_slice_grid(input_volume_hwd, rgba_volume_dhw4, patient_name, t, legen
             "label": t['labels'].get(name_key, name_key),
             "color": LABEL_TO_RGBA.get(val, (0,0,0,255))
         })
-    
+
     legend_start_y = TITLE_HEIGHT + grid_content_h + (MARGIN if num_rows > 0 else 0) + 5
     draw_horizontal_legend_pil(draw, legend_start_y, grid_w, legend_elements_for_grid, legend_font_pil)
-    
+
     return grid_img
 
+
+# --- State Management and Styling Functions (UNCHANGED) ---
 default_session_state = {
     'model_loaded':None,'device':torch.device('cuda'if torch.cuda.is_available()else'cpu'),
     'patient_name':"UnknownPatient",'current_date':datetime.now().strftime("%d %B %Y, %H:%M:%S")+" (Local)",
@@ -481,16 +485,64 @@ def display_volumetric_analysis(label_vol_dhw, vox_vol_mm3, seg_map_dict, trans,
             vol_cm3 = (vox_count * vox_vol_mm3) / 1000.0
             st.metric(label=disp_name, value=f"{vol_cm3:.2f} {trans.get('volume_label_unit','cm³')}")
 
+# <<< MODIFICATION: New cached function for model loading >>>
+@st.cache_resource
+def load_model_cached(model_source, arch_params, device):
+    """
+    Loads a model from a given source (file object or Google Drive ID).
+    This function is cached to prevent reloading the model on every script rerun.
+    """
+    in_c, out_c, base_f = arch_params
+    model = AttentionUNet3D(in_c, out_c, base_f)
+    pth_to_remove = None
+
+    try:
+        with st.spinner("Loading model into memory... (This happens only once per session)"):
+            # If model_source is a string, it's our GDrive ID
+            if isinstance(model_source, str) and model_source.startswith("GDRIVE_ID:"):
+                gdrive_id = model_source.split(":", 1)[1]
+                st.info(f"Downloading pretrained model from Google Drive...")
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pth") as tmp_f:
+                    pth_to_remove = tmp_f.name
+                gdown.download(id=gdrive_id, output=pth_to_remove, quiet=False)
+                # Load from the temporary file path
+                loaded_data = torch.load(pth_to_remove, map_location=device)
+            # Otherwise, it's an uploaded file object
+            else:
+                # Load directly from the in-memory buffer
+                loaded_data = torch.load(io.BytesIO(model_source.getvalue()), map_location=device)
+
+            # Handle state dict loading (robust to different save formats)
+            if isinstance(loaded_data, dict) and 'model_state_dict' in loaded_data:
+                model.load_state_dict(loaded_data['model_state_dict'])
+            else:
+                model.load_state_dict(loaded_data)
+
+            model.to(device).eval()
+            st.success("Model loaded and cached successfully!")
+            return model
+
+    except Exception as e:
+        st.error(f"Model loading failed: {e}")
+        st.exception(e)
+        return None
+    finally:
+        # Clean up the temporary file if it was created
+        if pth_to_remove and os.path.exists(pth_to_remove):
+            os.remove(pth_to_remove)
+
+# --- Main App Execution ---
 if __name__ == "__main__":
     st.set_page_config(page_title="SegMed",layout="wide",initial_sidebar_state="expanded")
     apply_page_styling()
 
+    # --- Language and Title (UNCHANGED) ---
     sel_lang = st.sidebar.selectbox("Language/Langue",list(TRANSLATIONS.keys()),
         index=list(TRANSLATIONS.keys()).index(st.session_state.language),key="main_language_selector")
     if sel_lang != st.session_state.language:
         st.session_state.language=sel_lang; st.experimental_rerun()
     t = TRANSLATIONS[st.session_state.language]
-    
+
     try:
         FONT_FOR_LEGEND_PIL = ImageFont.truetype("arial.ttf", 10)
     except IOError:
@@ -501,6 +553,7 @@ if __name__ == "__main__":
     with gh_col: st.markdown("<div style='text-align:right;margin-top:20px;'><a href='https://github.com/Vwoudka/segmed' target='_blank'><img src='https://github.githubassets.com/favicons/favicon.png' width='30' alt='GitHub'></a></div>",unsafe_allow_html=True)
     st.markdown(t["description"].format(TARGET_DEPTH=TARGET_DEPTH))
 
+    # --- Sidebar and Configuration (UNCHANGED) ---
     st.sidebar.header(t["sidebar_header"])
     st.session_state.patient_name = st.sidebar.text_input(t["patient_id"],value=st.session_state.patient_name,key="patient_name_input")
 
@@ -532,57 +585,29 @@ if __name__ == "__main__":
     if not use_hdr_dims:
         st.session_state.voxel_dim_x,st.session_state.voxel_dim_y,st.session_state.voxel_dim_z = man_vx_in,man_vy_in,man_vz_in
 
-    up_model_f_obj = st.sidebar.file_uploader(t["upload_model"],type=["pth"],key="model_uploader_main")
+    # --- MODIFICATION: Simplified model loading logic to use the cached function ---
+    model_source_to_load = None
+    up_model_f_obj = st.sidebar.file_uploader(t["upload_model"], type=["pth"], key="model_uploader_main")
+
     st.sidebar.header(t["pretrained_model"])
-    if st.sidebar.button(t["load_pretrained"],key="load_example_model_main_btn"):
-        GDRIVE_FILE_ID = "1nYmcyYQPkfxXFGdh9i2QVeakYNvdS4yH"
-                           
-        with st.spinner("Downloading example model from Google Drive..."):
-            try:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pth") as tmp_f:
-                    pth = tmp_f.name
+    if st.sidebar.button(t["load_pretrained"], key="load_example_model_main_btn"):
+        # Set the source to a special string for the cached function to interpret
+        model_source_to_load = "GDRIVE_ID:1nYmcyYQPkfxXFGdh9i2QVeakYNvdS4yH"
+        clear_segmentation_results()
 
-                # --- MODIFICATION START: Use gdown for robust download ---
-                gdown.download(id=GDRIVE_FILE_ID, output=pth, quiet=False)
-                # --- MODIFICATION END ---
+    if up_model_f_obj:
+        model_source_to_load = up_model_f_obj
+        clear_segmentation_results()
 
-                model = AttentionUNet3D(p_in_c, p_out_c, p_base_f)
-                loaded_data = torch.load(pth, map_location=st.session_state.device, weights_only=False)
-                
-                if isinstance(loaded_data, dict) and 'model_state_dict' in loaded_data:
-                    model.load_state_dict(loaded_data['model_state_dict'])
-                else:
-                    model.load_state_dict(loaded_data)
-                    
-                os.remove(pth)
-                model.to(st.session_state.device).eval()
-                st.session_state.model_loaded = model
-                st.success("Example model loaded!")
-                clear_segmentation_results()
-                
-            except Exception as e:
-                st.error(f"Example model load error: {e}")
-                if os.path.exists(pth):
-                    os.remove(pth)
-                st.session_state.model_loaded = None
-                st.exception(e)
+    # Load the model if a source has been selected
+    if model_source_to_load:
+        arch_params = (p_in_c, p_out_c, p_base_f)
+        # The cached function is called here
+        st.session_state.model_loaded = load_model_cached(model_source_to_load, arch_params, st.session_state.device)
+    # --- END OF MODEL LOADING MODIFICATION ---
 
-    if up_model_f_obj and st.session_state.model_loaded is None:
-        with st.spinner("Loading uploaded model..."):
-            try:
-                with tempfile.NamedTemporaryFile(delete=False,suffix=".pth")as tmp_f:
-                    tmp_f.write(up_model_f_obj.getvalue())
-                    pth=tmp_f.name
-                model=AttentionUNet3D(p_in_c,p_out_c,p_base_f)
-                loaded_data=torch.load(pth,map_location=st.session_state.device, weights_only=False)
-                
-                if isinstance(loaded_data,dict)and 'model_state_dict'in loaded_data: model.load_state_dict(loaded_data['model_state_dict'])
-                else: model.load_state_dict(loaded_data)
-                os.remove(pth);model.to(st.session_state.device).eval();st.session_state.model_loaded=model
-                st.success("Uploaded model loaded!"); clear_segmentation_results()
-            except RuntimeError as rte: st.error(f"Uploaded model state_dict error. Ensure model architecture (InstanceNorm affine, Conv bias, layer names) matches the .pth file. Details: {rte}"); st.session_state.model_loaded=None; st.exception(rte)
-            except Exception as e:st.error(f"Uploaded model load error: {e}");st.session_state.model_loaded=None; st.exception(e)
 
+    # --- Input File Uploaders (UNCHANGED) ---
     st.header(t["input_files"])
     num_uploaders=p_in_c if p_in_c>0 else 1; mod_t_names=t.get("modality_names",[])
     uploader_disp_labels=[mod_t_names[j]if j<len(mod_t_names)else f"Modality {j+1}" for j in range(num_uploaders)]
@@ -590,6 +615,8 @@ if __name__ == "__main__":
     for i in range(num_uploaders):
         with nii_cols_upload[i]:uploaded_nii_f_objs[i]=st.file_uploader(f"Upload {uploader_disp_labels[i]}",["nii.gz","nii"],key=f"nii_upload_widget_{i}")
 
+
+    # --- Segmentation Execution ---
     if st.button(t["run_button"],disabled=(not st.session_state.model_loaded or not all(uploaded_nii_f_objs)),key="run_segmentation_main_btn"):
         with st.spinner(f"Segmenting {TARGET_DEPTH} slices... This may take some time."):
             clear_segmentation_results()
@@ -597,17 +624,31 @@ if __name__ == "__main__":
                 proc_vols_list, aff_list, hdr_list = [],[],[]
                 for i, file_obj in enumerate(uploaded_nii_f_objs):
                     st.info(f"Processing: {uploader_disp_labels[i]}...")
-                    with tempfile.NamedTemporaryFile(delete=False,suffix=".nii.gz") as temp_nii:temp_nii.write(file_obj.getvalue());temp_nii_p=temp_nii.name
-                    vol_hwd,aff_m,nii_hdr=load_nii_and_preprocess(temp_nii_p,False,TARGET_HW_SHAPE,(START_SLICE,END_SLICE))
-                    os.remove(temp_nii_p)
+                    # Using BytesIO to avoid writing to disk
+                    vol_hwd,aff_m,nii_hdr=load_nii_and_preprocess(io.BytesIO(file_obj.getvalue()),False,TARGET_HW_SHAPE,(START_SLICE,END_SLICE))
+
                     if vol_hwd is None:st.error(f"Processing {uploader_disp_labels[i]} failed.");st.stop()
                     proc_vols_list.append(vol_hwd);
                     if i==0:aff_list.append(aff_m);hdr_list.append(nii_hdr)
 
-                stacked_chwd=np.stack(proc_vols_list,axis=0); input_cdhw=stacked_chwd.transpose(0,3,1,2)
+                # --- MODIFICATION: Active Memory Management ---
+                st.info("Preparing data tensor for the model...")
+                stacked_chwd=np.stack(proc_vols_list,axis=0)
+                del proc_vols_list # Explicitly delete large list
+                gc.collect()     # Force garbage collection
+
+                input_cdhw=stacked_chwd.transpose(0,3,1,2)
+                del stacked_chwd # Explicitly delete large array
+                gc.collect()     # Force garbage collection
+
                 input_tensor=torch.from_numpy(np.expand_dims(input_cdhw,0)).float().to(st.session_state.device)
+                del input_cdhw   # Explicitly delete large array
+                gc.collect()     # Force garbage collection before inference
+                # --- END OF MEMORY MANAGEMENT ---
+
                 st.info(f"Model input tensor shape: {input_tensor.shape} (N,C,D,H,W)")
-                with torch.no_grad(): logits_ncdhw=st.session_state.model_loaded(input_tensor)
+                with torch.no_grad():
+                    logits_ncdhw=st.session_state.model_loaded(input_tensor)
 
                 if logits_ncdhw.shape[2:]!=input_tensor.shape[2:]:
                     st.warning(f"Model output DHW {logits_ncdhw.shape[2:]} differs from input {input_tensor.shape[2:]}. Interpolating.")
@@ -616,11 +657,18 @@ if __name__ == "__main__":
                 pred_labels_dhw_arr=torch.argmax(logits_ncdhw.squeeze(0),dim=0).cpu().numpy().astype(np.uint8)
                 st.session_state.prediction_label_dhw=pred_labels_dhw_arr
                 st.session_state.prediction_rgba_dhw4=labels_to_rgba(pred_labels_dhw_arr,p_out_c,LABEL_TO_RGBA)
-                st.session_state.input_for_vis_np_hwd=proc_vols_list[0]
+
+                # Store the first modality's volume for visualization (already processed and smaller)
+                st.session_state.input_for_vis_np_hwd, _, _ = load_nii_and_preprocess(io.BytesIO(uploaded_nii_f_objs[0].getvalue()),False,TARGET_HW_SHAPE,(START_SLICE,END_SLICE))
+                
                 st.session_state.output_affine=aff_list[0];st.session_state.output_header=hdr_list[0]
                 st.success("Segmentation complete!")
-            except Exception as e:st.error(f"Segmentation process error: {e}");st.exception(e);clear_segmentation_results()
 
+            except Exception as e:
+                st.error(f"Segmentation process error: {e}");st.exception(e);clear_segmentation_results()
+
+
+    # --- Results and Download Section (UNCHANGED) ---
     if st.session_state.prediction_label_dhw is not None:
         st.header(t["results_header"])
         input_vis_hwd = st.session_state.input_for_vis_np_hwd
@@ -708,7 +756,6 @@ if __name__ == "__main__":
                                     present_lbl_names=[SEGMENTATION_LABELS_DICT[val] for val in unique_lbl_vals if val in SEGMENTATION_LABELS_DICT]
                                     labels_found_str=", ".join(present_lbl_names) if present_lbl_names else "No Tumor Labels"
 
-                                    # <<< MODIFIED: Adjusted figsize and subplots_adjust for tighter layout >>>
                                     fig_png_slice, ax_png_slice = plt.subplots(figsize=(6, 6.2), dpi=150)
                                     fig_png_slice.patch.set_facecolor('white')
 
@@ -728,8 +775,7 @@ if __name__ == "__main__":
                                     
                                     fig_png_slice.legend(handles=legend_patches, loc='lower center', ncol=len(legend_patches), 
                                                          bbox_to_anchor=(0.5, 0.01), frameon=False, fontsize='x-small')
-                                    fig_png_slice.subplots_adjust(bottom=0.12, top=0.9) # Adjusted bottom and top
-                                    # <<< END OF MODIFICATION >>>
+                                    fig_png_slice.subplots_adjust(bottom=0.12, top=0.9)
 
                                     png_byte_buffer=io.BytesIO()
                                     fig_png_slice.savefig(png_byte_buffer,format='png',bbox_inches='tight', facecolor=fig_png_slice.get_facecolor()); plt.close(fig_png_slice); png_byte_buffer.seek(0)
