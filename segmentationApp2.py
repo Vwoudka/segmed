@@ -15,18 +15,19 @@ from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 import math
 import gdown
-import gc # Garbage collector
+import gc
 
-# --- Configuration (UNCHANGED) ---
+# --- Configuration ---
 DEFAULT_IN_CHANNELS = 4
 DEFAULT_OUT_CLASSES = 4 # Incl. background
 DEFAULT_BASE_FEATURES = 32
-TARGET_HW_SHAPE = (128, 128)
+# <<< MODIFICATION: Changed target resolution to 100x100 >>>
+TARGET_HW_SHAPE = (100, 100)
 START_SLICE = 0
 END_SLICE = 182
 TARGET_DEPTH = END_SLICE - START_SLICE # This is 182
 
-# --- Label and Color Definitions (UNCHANGED) ---
+# --- Label and Color Definitions ---
 LABEL_TO_RGBA = {
     0: (0, 0, 0, 0),       # Background
     1: (255, 0, 0, 255),   # Necrotic (Red)
@@ -262,8 +263,7 @@ class AttentionUNet3D(nn.Module):
         return logits
 
 
-# --- Utility Functions ---
-# <<< MODIFICATION: Reverted function to accept a file path, as nibabel requires it. >>>
+# --- Utility Functions (UNCHANGED) ---
 def load_nii_and_preprocess(file_path, is_label=False, target_hw_shape=TARGET_HW_SHAPE, slice_range=(START_SLICE, END_SLICE)):
     try:
         img = nib.load(file_path)
@@ -318,11 +318,9 @@ def load_nii_and_preprocess(file_path, is_label=False, target_hw_shape=TARGET_HW
             st.error(f"File {os.path.basename(file_path)}: Final shape {final_volume_hwd.shape} != expected {expected_shape}."); return None,None,None
         return final_volume_hwd, img.affine, img.header
     except Exception as e:
-        # This now works because file_path is a string again
         st.error(f"Error processing NIfTI {os.path.basename(file_path)}: {e}"); st.exception(e); return None,None,None
 
-
-# ... (The rest of the utility, state, and styling functions are unchanged) ...
+# ... (The rest of the utility, state, and styling functions are unchanged. They will be included in the final script.)
 def labels_to_rgba(label_volume_dhw, num_total_classes, color_map_dict):
     rgba_volume = np.zeros((*label_volume_dhw.shape, 4), dtype=np.uint8)
     for class_value in range(num_total_classes):
@@ -490,14 +488,9 @@ def display_volumetric_analysis(label_vol_dhw, vox_vol_mm3, seg_map_dict, trans,
 # Cached function for model loading
 @st.cache_resource
 def load_model_cached(model_source, arch_params, device):
-    """
-    Loads a model from a given source (file object or Google Drive ID).
-    This function is cached to prevent reloading the model on every script rerun.
-    """
     in_c, out_c, base_f = arch_params
     model = AttentionUNet3D(in_c, out_c, base_f)
     pth_to_remove = None
-
     try:
         with st.spinner("Loading model into memory... (This happens only once per session)"):
             if isinstance(model_source, str) and model_source.startswith("GDRIVE_ID:"):
@@ -509,16 +502,13 @@ def load_model_cached(model_source, arch_params, device):
                 loaded_data = torch.load(pth_to_remove, map_location=device)
             else:
                 loaded_data = torch.load(io.BytesIO(model_source.getvalue()), map_location=device)
-
             if isinstance(loaded_data, dict) and 'model_state_dict' in loaded_data:
                 model.load_state_dict(loaded_data['model_state_dict'])
             else:
                 model.load_state_dict(loaded_data)
-
             model.to(device).eval()
             st.success("Model loaded and cached successfully!")
             return model
-
     except Exception as e:
         st.error(f"Model loading failed: {e}")
         st.exception(e)
@@ -609,13 +599,10 @@ if __name__ == "__main__":
                 proc_vols_list, aff_list, hdr_list = [],[],[]
                 for i, file_obj in enumerate(uploaded_nii_f_objs):
                     st.info(f"Processing: {uploader_disp_labels[i]}...")
-                    # <<< MODIFICATION: Use a temporary file on disk, which is guaranteed to be a path. >>>
                     with tempfile.NamedTemporaryFile(delete=True, suffix=".nii.gz") as temp_nii:
                         temp_nii.write(file_obj.getvalue())
                         temp_nii_path = temp_nii.name
-                        # Pass the path to the processing function
                         vol_hwd, aff_m, nii_hdr = load_nii_and_preprocess(temp_nii_path, False, TARGET_HW_SHAPE, (START_SLICE, END_SLICE))
-
                     if vol_hwd is None:
                         st.error(f"Processing {uploader_disp_labels[i]} failed.");
                         st.stop()
@@ -623,7 +610,7 @@ if __name__ == "__main__":
                     if i==0:
                         aff_list.append(aff_m)
                         hdr_list.append(nii_hdr)
-
+                
                 st.info("Preparing data tensor for the model...")
                 stacked_chwd=np.stack(proc_vols_list,axis=0)
                 del proc_vols_list
@@ -649,7 +636,6 @@ if __name__ == "__main__":
                 st.session_state.prediction_label_dhw=pred_labels_dhw_arr
                 st.session_state.prediction_rgba_dhw4=labels_to_rgba(pred_labels_dhw_arr,p_out_c,LABEL_TO_RGBA)
 
-                # Get visualization data by reloading the first NIfTI file in the same way
                 with tempfile.NamedTemporaryFile(delete=True, suffix=".nii.gz") as temp_nii_vis:
                     temp_nii_vis.write(uploaded_nii_f_objs[0].getvalue())
                     st.session_state.input_for_vis_np_hwd, _, _ = load_nii_and_preprocess(temp_nii_vis.name, False,TARGET_HW_SHAPE,(START_SLICE,END_SLICE))
@@ -661,13 +647,10 @@ if __name__ == "__main__":
 
 
     if st.session_state.prediction_label_dhw is not None:
-        # --- This entire results section is unchanged ---
         st.header(t["results_header"])
         input_vis_hwd = st.session_state.input_for_vis_np_hwd
         pred_labels_dhw = st.session_state.prediction_label_dhw
         pred_rgba_dhw4 = st.session_state.prediction_rgba_dhw4
-
-        # ... (rest of your results display code, which is unchanged) ...
         mid_d, mid_h, mid_w = pred_labels_dhw.shape[0]//2, pred_labels_dhw.shape[1]//2, pred_labels_dhw.shape[2]//2
 
         plot_configs = [
