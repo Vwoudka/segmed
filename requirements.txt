@@ -7,4 +7,4 @@ gdown
 torch
 torchvision
 torchaudio
-numpy
+numpy>2.0
