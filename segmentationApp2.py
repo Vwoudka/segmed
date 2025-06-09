@@ -15,7 +15,7 @@ from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 import math
 import gdown
-import gc # <<< MODIFICATION: Imported the garbage collector
+import gc # Garbage collector
 
 # --- Configuration (UNCHANGED) ---
 DEFAULT_IN_CHANNELS = 4
@@ -262,17 +262,19 @@ class AttentionUNet3D(nn.Module):
         return logits
 
 
-# --- Utility Functions (UNCHANGED) ---
-def load_nii_and_preprocess(file_path, is_label=False, target_hw_shape=TARGET_HW_SHAPE, slice_range=(START_SLICE, END_SLICE)):
+# --- Utility Functions ---
+# <<< MODIFICATION: Changed function signature to accept filename for error logging >>>
+def load_nii_and_preprocess(file_source, filename, is_label=False, target_hw_shape=TARGET_HW_SHAPE, slice_range=(START_SLICE, END_SLICE)):
     try:
-        img = nib.load(file_path)
+        # nibabel can load from a file-like object (e.g., BytesIO)
+        img = nib.load(file_source)
         data = np.array(img.dataobj, dtype=(np.int64 if is_label else np.float32))
         s_start, s_end = slice_range
         target_d = s_end - s_start
 
         if data.ndim == 4 and data.shape[3] == 1: data = np.squeeze(data, axis=3)
         if data.ndim != 3:
-            st.warning(f"File {os.path.basename(file_path)}: unexpected dimensions {data.shape}. Expected 3D array."); return None, None, None
+            st.warning(f"File {filename}: unexpected dimensions {data.shape}. Expected 3D array."); return None, None, None
 
         current_h_orig, current_w_orig, current_depth_orig = data.shape
 
@@ -303,7 +305,7 @@ def load_nii_and_preprocess(file_path, is_label=False, target_hw_shape=TARGET_HW
                 resized_slices.append(resized_slice.astype(data.dtype))
 
         if not resized_slices and target_d > 0:
-            st.error(f"File {os.path.basename(file_path)}: No slices generated, target depth {target_d}."); return None,None,None
+            st.error(f"File {filename}: No slices generated, target depth {target_d}."); return None,None,None
 
         final_volume_hwd = np.stack(resized_slices, axis=-1) if resized_slices else \
                            np.zeros((target_hw_shape[0], target_hw_shape[1], 0), dtype=data.dtype)
@@ -314,11 +316,14 @@ def load_nii_and_preprocess(file_path, is_label=False, target_hw_shape=TARGET_HW
 
         expected_shape = (target_hw_shape[0], target_hw_shape[1], target_d)
         if final_volume_hwd.shape != expected_shape:
-            st.error(f"File {os.path.basename(file_path)}: Final shape {final_volume_hwd.shape} != expected {expected_shape}."); return None,None,None
+            st.error(f"File {filename}: Final shape {final_volume_hwd.shape} != expected {expected_shape}."); return None,None,None
         return final_volume_hwd, img.affine, img.header
     except Exception as e:
-        st.error(f"Error processing NIfTI {os.path.basename(file_path)}: {e}"); st.exception(e); return None,None,None
+        # <<< MODIFICATION: Use the 'filename' variable for the error message >>>
+        st.error(f"Error processing NIfTI {filename}: {e}"); st.exception(e); return None,None,None
 
+
+# ... (The rest of the utility, state, and styling functions are unchanged) ...
 def labels_to_rgba(label_volume_dhw, num_total_classes, color_map_dict):
     rgba_volume = np.zeros((*label_volume_dhw.shape, 4), dtype=np.uint8)
     for class_value in range(num_total_classes):
@@ -419,8 +424,6 @@ def create_slice_grid(input_volume_hwd, rgba_volume_dhw4, patient_name, t, legen
 
     return grid_img
 
-
-# --- State Management and Styling Functions (UNCHANGED) ---
 default_session_state = {
     'model_loaded':None,'device':torch.device('cuda'if torch.cuda.is_available()else'cpu'),
     'patient_name':"UnknownPatient",'current_date':datetime.now().strftime("%d %B %Y, %H:%M:%S")+" (Local)",
@@ -498,21 +501,16 @@ def load_model_cached(model_source, arch_params, device):
 
     try:
         with st.spinner("Loading model into memory... (This happens only once per session)"):
-            # If model_source is a string, it's our GDrive ID
             if isinstance(model_source, str) and model_source.startswith("GDRIVE_ID:"):
                 gdrive_id = model_source.split(":", 1)[1]
                 st.info(f"Downloading pretrained model from Google Drive...")
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pth") as tmp_f:
                     pth_to_remove = tmp_f.name
                 gdown.download(id=gdrive_id, output=pth_to_remove, quiet=False)
-                # Load from the temporary file path
                 loaded_data = torch.load(pth_to_remove, map_location=device)
-            # Otherwise, it's an uploaded file object
             else:
-                # Load directly from the in-memory buffer
                 loaded_data = torch.load(io.BytesIO(model_source.getvalue()), map_location=device)
 
-            # Handle state dict loading (robust to different save formats)
             if isinstance(loaded_data, dict) and 'model_state_dict' in loaded_data:
                 model.load_state_dict(loaded_data['model_state_dict'])
             else:
@@ -527,7 +525,6 @@ def load_model_cached(model_source, arch_params, device):
         st.exception(e)
         return None
     finally:
-        # Clean up the temporary file if it was created
         if pth_to_remove and os.path.exists(pth_to_remove):
             os.remove(pth_to_remove)
 
@@ -536,7 +533,6 @@ if __name__ == "__main__":
     st.set_page_config(page_title="SegMed",layout="wide",initial_sidebar_state="expanded")
     apply_page_styling()
 
-    # --- Language and Title (UNCHANGED) ---
     sel_lang = st.sidebar.selectbox("Language/Langue",list(TRANSLATIONS.keys()),
         index=list(TRANSLATIONS.keys()).index(st.session_state.language),key="main_language_selector")
     if sel_lang != st.session_state.language:
@@ -553,7 +549,6 @@ if __name__ == "__main__":
     with gh_col: st.markdown("<div style='text-align:right;margin-top:20px;'><a href='https://github.com/Vwoudka/segmed' target='_blank'><img src='https://github.githubassets.com/favicons/favicon.png' width='30' alt='GitHub'></a></div>",unsafe_allow_html=True)
     st.markdown(t["description"].format(TARGET_DEPTH=TARGET_DEPTH))
 
-    # --- Sidebar and Configuration (UNCHANGED) ---
     st.sidebar.header(t["sidebar_header"])
     st.session_state.patient_name = st.sidebar.text_input(t["patient_id"],value=st.session_state.patient_name,key="patient_name_input")
 
@@ -585,13 +580,11 @@ if __name__ == "__main__":
     if not use_hdr_dims:
         st.session_state.voxel_dim_x,st.session_state.voxel_dim_y,st.session_state.voxel_dim_z = man_vx_in,man_vy_in,man_vz_in
 
-    # --- MODIFICATION: Simplified model loading logic to use the cached function ---
     model_source_to_load = None
     up_model_f_obj = st.sidebar.file_uploader(t["upload_model"], type=["pth"], key="model_uploader_main")
 
     st.sidebar.header(t["pretrained_model"])
     if st.sidebar.button(t["load_pretrained"], key="load_example_model_main_btn"):
-        # Set the source to a special string for the cached function to interpret
         model_source_to_load = "GDRIVE_ID:1nYmcyYQPkfxXFGdh9i2QVeakYNvdS4yH"
         clear_segmentation_results()
 
@@ -599,15 +592,10 @@ if __name__ == "__main__":
         model_source_to_load = up_model_f_obj
         clear_segmentation_results()
 
-    # Load the model if a source has been selected
     if model_source_to_load:
         arch_params = (p_in_c, p_out_c, p_base_f)
-        # The cached function is called here
         st.session_state.model_loaded = load_model_cached(model_source_to_load, arch_params, st.session_state.device)
-    # --- END OF MODEL LOADING MODIFICATION ---
 
-
-    # --- Input File Uploaders (UNCHANGED) ---
     st.header(t["input_files"])
     num_uploaders=p_in_c if p_in_c>0 else 1; mod_t_names=t.get("modality_names",[])
     uploader_disp_labels=[mod_t_names[j]if j<len(mod_t_names)else f"Modality {j+1}" for j in range(num_uploaders)]
@@ -615,8 +603,6 @@ if __name__ == "__main__":
     for i in range(num_uploaders):
         with nii_cols_upload[i]:uploaded_nii_f_objs[i]=st.file_uploader(f"Upload {uploader_disp_labels[i]}",["nii.gz","nii"],key=f"nii_upload_widget_{i}")
 
-
-    # --- Segmentation Execution ---
     if st.button(t["run_button"],disabled=(not st.session_state.model_loaded or not all(uploaded_nii_f_objs)),key="run_segmentation_main_btn"):
         with st.spinner(f"Segmenting {TARGET_DEPTH} slices... This may take some time."):
             clear_segmentation_results()
@@ -624,27 +610,25 @@ if __name__ == "__main__":
                 proc_vols_list, aff_list, hdr_list = [],[],[]
                 for i, file_obj in enumerate(uploaded_nii_f_objs):
                     st.info(f"Processing: {uploader_disp_labels[i]}...")
-                    # Using BytesIO to avoid writing to disk
-                    vol_hwd,aff_m,nii_hdr=load_nii_and_preprocess(io.BytesIO(file_obj.getvalue()),False,TARGET_HW_SHAPE,(START_SLICE,END_SLICE))
+                    # <<< MODIFICATION: Pass both the memory buffer and the filename to the function >>>
+                    vol_hwd,aff_m,nii_hdr=load_nii_and_preprocess(io.BytesIO(file_obj.getvalue()), file_obj.name, False,TARGET_HW_SHAPE,(START_SLICE,END_SLICE))
 
                     if vol_hwd is None:st.error(f"Processing {uploader_disp_labels[i]} failed.");st.stop()
                     proc_vols_list.append(vol_hwd);
                     if i==0:aff_list.append(aff_m);hdr_list.append(nii_hdr)
 
-                # --- MODIFICATION: Active Memory Management ---
                 st.info("Preparing data tensor for the model...")
                 stacked_chwd=np.stack(proc_vols_list,axis=0)
-                del proc_vols_list # Explicitly delete large list
-                gc.collect()     # Force garbage collection
+                del proc_vols_list
+                gc.collect()
 
                 input_cdhw=stacked_chwd.transpose(0,3,1,2)
-                del stacked_chwd # Explicitly delete large array
-                gc.collect()     # Force garbage collection
+                del stacked_chwd
+                gc.collect()
 
                 input_tensor=torch.from_numpy(np.expand_dims(input_cdhw,0)).float().to(st.session_state.device)
-                del input_cdhw   # Explicitly delete large array
-                gc.collect()     # Force garbage collection before inference
-                # --- END OF MEMORY MANAGEMENT ---
+                del input_cdhw
+                gc.collect()
 
                 st.info(f"Model input tensor shape: {input_tensor.shape} (N,C,D,H,W)")
                 with torch.no_grad():
@@ -658,18 +642,17 @@ if __name__ == "__main__":
                 st.session_state.prediction_label_dhw=pred_labels_dhw_arr
                 st.session_state.prediction_rgba_dhw4=labels_to_rgba(pred_labels_dhw_arr,p_out_c,LABEL_TO_RGBA)
 
-                # Store the first modality's volume for visualization (already processed and smaller)
-                st.session_state.input_for_vis_np_hwd, _, _ = load_nii_and_preprocess(io.BytesIO(uploaded_nii_f_objs[0].getvalue()),False,TARGET_HW_SHAPE,(START_SLICE,END_SLICE))
-                
+                # <<< MODIFICATION: Also pass the filename here for the visualization data >>>
+                st.session_state.input_for_vis_np_hwd, _, _ = load_nii_and_preprocess(io.BytesIO(uploaded_nii_f_objs[0].getvalue()), uploaded_nii_f_objs[0].name, False,TARGET_HW_SHAPE,(START_SLICE,END_SLICE))
+
                 st.session_state.output_affine=aff_list[0];st.session_state.output_header=hdr_list[0]
                 st.success("Segmentation complete!")
 
-            except Exception as e:
-                st.error(f"Segmentation process error: {e}");st.exception(e);clear_segmentation_results()
+            except Exception as e:st.error(f"Segmentation process error: {e}");st.exception(e);clear_segmentation_results()
 
 
-    # --- Results and Download Section (UNCHANGED) ---
     if st.session_state.prediction_label_dhw is not None:
+        # --- This entire results section is unchanged ---
         st.header(t["results_header"])
         input_vis_hwd = st.session_state.input_for_vis_np_hwd
         pred_labels_dhw = st.session_state.prediction_label_dhw
@@ -745,7 +728,7 @@ if __name__ == "__main__":
                             st.session_state.grid_image_buffer=bio_grid;st.session_state.png_download_type="grid"
                             st.image(grid_img_pil,caption=f"Preview ({TARGET_DEPTH} slices with legend)",use_column_width=True);st.success("Grid ready.")
                         except Exception as e:st.error(f"Grid image error: {e}")
-                else: 
+                else:
                     with st.spinner(f"Generating {TARGET_DEPTH} PNGs with legends for ZIP..."):
                         try:
                             zip_bio_out=io.BytesIO()
@@ -772,8 +755,8 @@ if __name__ == "__main__":
                                         text_label = t['labels'].get(label_name_key, label_name_key)
                                         color_rgba = np.array(LABEL_TO_RGBA.get(label_val, (0,0,0,255))) / 255.0
                                         legend_patches.append(mpatches.Patch(color=color_rgba, label=text_label))
-                                    
-                                    fig_png_slice.legend(handles=legend_patches, loc='lower center', ncol=len(legend_patches), 
+
+                                    fig_png_slice.legend(handles=legend_patches, loc='lower center', ncol=len(legend_patches),
                                                          bbox_to_anchor=(0.5, 0.01), frameon=False, fontsize='x-small')
                                     fig_png_slice.subplots_adjust(bottom=0.12, top=0.9)
 
