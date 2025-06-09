@@ -4,7 +4,7 @@ scikit-image
 scipy
 matplotlib
 gdown
-torch
+torch==2.1.2
 torchvision
-torchaudio
+torchaudio==2.1.2
 numpy
