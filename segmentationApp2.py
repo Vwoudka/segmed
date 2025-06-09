@@ -21,7 +21,6 @@ import gc
 DEFAULT_IN_CHANNELS = 4
 DEFAULT_OUT_CLASSES = 4 # Incl. background
 DEFAULT_BASE_FEATURES = 32
-# <<< MODIFICATION: Changed target resolution to 100x100 >>>
 TARGET_HW_SHAPE = (100, 100)
 START_SLICE = 0
 END_SLICE = 182
@@ -40,7 +39,7 @@ SEGMENTATION_LABELS_DICT = {
     3: "Enhancing",
 }
 
-# --- Translations (UNCHANGED) ---
+# --- Translations ---
 TRANSLATIONS = {
     "English": {
         "title": "3D Brain Tumour Segmentation",
@@ -149,7 +148,7 @@ TRANSLATIONS = {
 }
 
 
-# --- Model Definition (UNCHANGED) ---
+# --- Model Definition ---
 class AttentionGate3D(nn.Module):
     def __init__(self, F_g, F_l, F_int):
         super(AttentionGate3D, self).__init__()
@@ -263,7 +262,7 @@ class AttentionUNet3D(nn.Module):
         return logits
 
 
-# --- Utility Functions (UNCHANGED) ---
+# --- Utility Functions ---
 def load_nii_and_preprocess(file_path, is_label=False, target_hw_shape=TARGET_HW_SHAPE, slice_range=(START_SLICE, END_SLICE)):
     try:
         img = nib.load(file_path)
@@ -320,7 +319,7 @@ def load_nii_and_preprocess(file_path, is_label=False, target_hw_shape=TARGET_HW
     except Exception as e:
         st.error(f"Error processing NIfTI {os.path.basename(file_path)}: {e}"); st.exception(e); return None,None,None
 
-# ... (The rest of the utility, state, and styling functions are unchanged. They will be included in the final script.)
+
 def labels_to_rgba(label_volume_dhw, num_total_classes, color_map_dict):
     rgba_volume = np.zeros((*label_volume_dhw.shape, 4), dtype=np.uint8)
     for class_value in range(num_total_classes):
