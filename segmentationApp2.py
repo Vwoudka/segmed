@@ -14,7 +14,7 @@ import zipfile
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 import math
-import gdown 
+import gdown # <-- IMPORT GDOWN
 
 # --- Configuration ---
 DEFAULT_IN_CHANNELS = 4
@@ -542,9 +542,9 @@ if __name__ == "__main__":
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pth") as tmp_f:
                     pth = tmp_f.name
 
-
+                # --- MODIFICATION START: Use gdown for robust download ---
                 gdown.download(id=GDRIVE_FILE_ID, output=pth, quiet=False)
-
+                # --- MODIFICATION END ---
 
                 model = AttentionUNet3D(p_in_c, p_out_c, p_base_f)
                 loaded_data = torch.load(pth, map_location=st.session_state.device, weights_only=False)
@@ -708,6 +708,7 @@ if __name__ == "__main__":
                                     present_lbl_names=[SEGMENTATION_LABELS_DICT[val] for val in unique_lbl_vals if val in SEGMENTATION_LABELS_DICT]
                                     labels_found_str=", ".join(present_lbl_names) if present_lbl_names else "No Tumor Labels"
 
+                                    # <<< MODIFIED: Adjusted figsize and subplots_adjust for tighter layout >>>
                                     fig_png_slice, ax_png_slice = plt.subplots(figsize=(6, 6.2), dpi=150)
                                     fig_png_slice.patch.set_facecolor('white')
 
@@ -727,7 +728,8 @@ if __name__ == "__main__":
                                     
                                     fig_png_slice.legend(handles=legend_patches, loc='lower center', ncol=len(legend_patches), 
                                                          bbox_to_anchor=(0.5, 0.01), frameon=False, fontsize='x-small')
-                                    fig_png_slice.subplots_adjust(bottom=0.12, top=0.9)
+                                    fig_png_slice.subplots_adjust(bottom=0.12, top=0.9) # Adjusted bottom and top
+                                    # <<< END OF MODIFICATION >>>
 
                                     png_byte_buffer=io.BytesIO()
                                     fig_png_slice.savefig(png_byte_buffer,format='png',bbox_inches='tight', facecolor=fig_png_slice.get_facecolor()); plt.close(fig_png_slice); png_byte_buffer.seek(0)
