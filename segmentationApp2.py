@@ -21,7 +21,7 @@ import gc
 DEFAULT_IN_CHANNELS = 4
 DEFAULT_OUT_CLASSES = 4 # Incl. background
 DEFAULT_BASE_FEATURES = 32
-TARGET_HW_SHAPE = (128, 128)
+TARGET_HW_SHAPE = (100, 100)
 START_SLICE = 0
 END_SLICE = 182
 TARGET_DEPTH = END_SLICE - START_SLICE # This is 182
@@ -768,4 +768,5 @@ if __name__ == "__main__":
         st.info("Segmentation results, volumetric analysis, and download options will appear here after running segmentation.")
 
     st.markdown("---");st.markdown(f"Timestamp: {st.session_state.current_date}");st.caption(f"{t['running_on']}: {st.session_state.device}")
+
 
