@@ -21,7 +21,7 @@ import gc
 DEFAULT_IN_CHANNELS = 4
 DEFAULT_OUT_CLASSES = 4 # Incl. background
 DEFAULT_BASE_FEATURES = 32
-TARGET_HW_SHAPE = (100, 100)
+TARGET_HW_SHAPE = (128, 128)  # Changed from (100, 100) to (128, 128)
 START_SLICE = 0
 END_SLICE = 182
 TARGET_DEPTH = END_SLICE - START_SLICE # This is 182
@@ -199,7 +199,7 @@ class AttentionUNet3D(nn.Module):
         self.decoder2 = self._make_block(base_features * 4, base_features * 2)
 
         self.up1 = self._make_upsample(base_features * 2, base_features)
-        self.attn1 = AttentionGate3D(F_g=base_features, F_l=base_features, F_int=base_features // 2)
+        self.attn1 = AttentionGate3D(F_g=base_features, F_l=base_features, F_int=base_features / 2)
         self.decoder1 = self._make_block(base_features * 2, base_features)
 
         self.final_conv = nn.Conv3d(base_features, out_channels, kernel_size=1, bias=True)
@@ -650,22 +650,10 @@ if __name__ == "__main__":
         input_vis_hwd = st.session_state.input_for_vis_np_hwd
         pred_labels_dhw = st.session_state.prediction_label_dhw
         pred_rgba_dhw4 = st.session_state.prediction_rgba_dhw4
-        mid_d, mid_h, mid_w = pred_labels_dhw.shape[0]//2, pred_labels_dhw.shape[1]//2, pred_labels_dhw.shape[2]//2
-
-        plot_configs = [
-            {"name":"Axial", "data":{"input":input_vis_hwd[:,:,mid_d], "rgba":pred_rgba_dhw4[mid_d,:,:,:], "title":f"Axial Slice: {mid_d+START_SLICE}(orig)/{mid_d}(proc)", "aspect":"equal"}},
-            {"name":"Sagittal", "data":{"input":input_vis_hwd[:,mid_w,:], "rgba":np.transpose(pred_rgba_dhw4[:,:,mid_w,:],(1,0,2)), "title":f"Sagittal (W-slice:{mid_w})", "aspect":input_vis_hwd.shape[2]/(input_vis_hwd.shape[0] or 1)}},
-            {"name":"Coronal", "data":{"input":input_vis_hwd[mid_h,:,:], "rgba":np.transpose(pred_rgba_dhw4[:,mid_h,:,:],(1,0,2)), "title":f"Coronal (H-slice:{mid_h})", "aspect":input_vis_hwd.shape[2]/(input_vis_hwd.shape[1] or 1)}}
-        ]
-        st.subheader(t["multi_view"]); vis_cols = st.columns(len(plot_configs))
-        for i, cfg in enumerate(plot_configs):
-            pd = cfg["data"]
-            with vis_cols[i]:
-                st.markdown(f"**{pd['title']}**")
-                fig, ax = plt.subplots(figsize=(5,5));
-                ax.imshow(pd["input"], cmap='gray', aspect=pd["aspect"])
-                ax.imshow(pd["rgba"], aspect=pd["aspect"])
-                ax.axis('off'); st.pyplot(fig); plt.close(fig)
+        
+        # REMOVED: Multi-view segmentation overlay display
+        # This section previously contained code to display axial, sagittal, and coronal views
+        # with matplotlib figures, but has been removed as requested
 
         st.subheader(t["legend_header"])
         legend_html_items = []
@@ -768,5 +756,3 @@ if __name__ == "__main__":
         st.info("Segmentation results, volumetric analysis, and download options will appear here after running segmentation.")
 
     st.markdown("---");st.markdown(f"Timestamp: {st.session_state.current_date}");st.caption(f"{t['running_on']}: {st.session_state.device}")
-
-
