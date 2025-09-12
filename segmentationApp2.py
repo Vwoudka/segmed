@@ -21,10 +21,10 @@ import gc
 DEFAULT_IN_CHANNELS = 4
 DEFAULT_OUT_CLASSES = 4 # Incl. background
 DEFAULT_BASE_FEATURES = 32
-TARGET_HW_SHAPE = (120, 120)
-START_SLICE = 25
-END_SLICE = 155
-TARGET_DEPTH = END_SLICE - START_SLICE 
+TARGET_HW_SHAPE = (128, 128)  # Changed from 100x100 to 128x128
+START_SLICE = 25  # Changed from 0 to 25
+END_SLICE = 155   # Changed from 182 to 155
+TARGET_DEPTH = END_SLICE - START_SLICE # This is now 130
 
 # --- Label and Color Definitions ---
 LABEL_TO_RGBA = {
@@ -199,7 +199,7 @@ class AttentionUNet3D(nn.Module):
         self.decoder2 = self._make_block(base_features * 4, base_features * 2)
 
         self.up1 = self._make_upsample(base_features * 2, base_features)
-        self.attn1 = AttentionGate3D(F_g=base_features, F_l=base_features, F_int=base_features // 2)
+        self.attn1 = AttentionGate3D(F_g=base_features, F_l=base_features, F_int=base_features / 2)
         self.decoder1 = self._make_block(base_features * 2, base_features)
 
         self.final_conv = nn.Conv3d(base_features, out_channels, kernel_size=1, bias=True)
@@ -328,111 +328,32 @@ def labels_to_rgba(label_volume_dhw, num_total_classes, color_map_dict):
         rgba_volume[mask] = color
     return rgba_volume
 
-def draw_horizontal_legend_pil(draw, start_y, image_width, legend_elements, font,
-                                 box_size=12, text_offset=4, item_spacing=10, text_fill=(0,0,0,255)):
-    total_legend_width = 0
-    element_widths = []
+def display_volumetric_analysis(label_vol_dhw, vox_vol_mm3, seg_map_dict, trans, dim_src_info):
+    st.subheader(trans["volumetric_analysis_header"])
+    st.caption(f"Voxel Dimensions Used: {dim_src_info}")
+    if not seg_map_dict: st.info("No labels for volume calculation."); return
 
-    for item in legend_elements:
-        try:
-            text_bbox = draw.textbbox((0,0), item['label'], font=font)
-            text_width = text_bbox[2] - text_bbox[0]
-        except AttributeError:
-            text_width = font.getsize(item['label'])[0]
-
-        item_width = box_size + text_offset + text_width
-        element_widths.append(item_width)
-        total_legend_width += item_width
-
-    if legend_elements:
-        total_legend_width += item_spacing * (len(legend_elements) - 1)
-
-    current_x = (image_width - total_legend_width) / 2
-    if current_x < 5: current_x = 5
-
-    for i, item in enumerate(legend_elements):
-        try:
-            ascent, descent = font.getmetrics()
-            text_height_approx = ascent + descent
-        except AttributeError:
-            text_height_approx = font.getsize("A")[1]
-
-        box_y_offset = (text_height_approx - box_size) / 2
-        box_y = start_y + box_y_offset
-
-        draw.rectangle([current_x, box_y, current_x + box_size, box_y + box_size], fill=item['color'])
-        draw.text((current_x + box_size + text_offset, start_y), item['label'], font=font, fill=text_fill)
-        current_x += element_widths[i] + item_spacing
-
-def create_slice_grid(input_volume_hwd, rgba_volume_dhw4, patient_name, t, legend_font_pil):
-    SLICES_PER_ROW = 13
-    MARGIN = 5
-    TITLE_HEIGHT = 60
-    LEGEND_AREA_HEIGHT = 40
-    IMG_H, IMG_W, TOTAL_SLICES = input_volume_hwd.shape
-
-    if TOTAL_SLICES == 0:
-        placeholder = Image.new('RGB', (300, 100), color='white')
-        draw = ImageDraw.Draw(placeholder)
-        draw.text((10, 10), "No slices for grid.", fill="black")
-        return placeholder
-
-    num_rows = math.ceil(TOTAL_SLICES / SLICES_PER_ROW)
-    grid_content_w = (IMG_W * SLICES_PER_ROW) + (MARGIN * (SLICES_PER_ROW - 1))
-    grid_content_h = (IMG_H * num_rows) + (MARGIN * (num_rows - 1))
-
-    grid_w = max(grid_content_w, 300)
-    grid_h = TITLE_HEIGHT + grid_content_h + LEGEND_AREA_HEIGHT
-
-    grid_img = Image.new('RGB', (int(grid_w), int(grid_h)), color='white')
-    draw = ImageDraw.Draw(grid_img)
-
-    try:
-        title_font = ImageFont.truetype("arial.ttf", 24)
-    except IOError:
-        title_font = ImageFont.load_default()
-
-    draw.text((10, 10), f"Pt: {patient_name} - {TOTAL_SLICES} slices ({SLICES_PER_ROW}x{num_rows})", font=title_font, fill='black')
-
-    for i in range(TOTAL_SLICES):
-        r, c = i // SLICES_PER_ROW, i % SLICES_PER_ROW
-        px, py = c * (IMG_W + MARGIN), TITLE_HEIGHT + r * (IMG_H + MARGIN)
-
-        slice_data_float = input_volume_hwd[:, :, i]
-        base_img_pil = Image.fromarray((slice_data_float * 255).astype(np.uint8)).convert('RGBA')
-
-        segslice_np = rgba_volume_dhw4[i, :, :, :]
-        overlay_pil = Image.fromarray(segslice_np).convert('RGBA')
-
-        composite_pil = Image.alpha_composite(base_img_pil, overlay_pil)
-        grid_img.paste(composite_pil.convert('RGB'), (int(px), int(py)))
-
-    LEGEND_BG_SWATCH_COLOR = (220, 220, 220, 255)
-    legend_elements_for_grid = [{"label": t['labels']['Background'], "color": LEGEND_BG_SWATCH_COLOR}]
-    for val, name_key in SEGMENTATION_LABELS_DICT.items():
-        legend_elements_for_grid.append({
-            "label": t['labels'].get(name_key, name_key),
-            "color": LABEL_TO_RGBA.get(val, (0,0,0,255))
-        })
-
-    legend_start_y = TITLE_HEIGHT + grid_content_h + (MARGIN if num_rows > 0 else 0) + 5
-    draw_horizontal_legend_pil(draw, legend_start_y, grid_w, legend_elements_for_grid, legend_font_pil)
-
-    return grid_img
+    num_metrics = len(seg_map_dict)
+    cols = st.columns(num_metrics if num_metrics > 0 else 1)
+    for i, (val, name_key) in enumerate(seg_map_dict.items()):
+        with cols[i % num_metrics]:
+            disp_name = trans["labels"].get(name_key, name_key)
+            vox_count = np.sum(label_vol_dhw == val)
+            vol_cm3 = (vox_count * vox_vol_mm3) / 1000.0
+            st.metric(label=disp_name, value=f"{vol_cm3:.2f} {trans.get('volume_label_unit','cm³')}")
 
 default_session_state = {
     'model_loaded':None,'device':torch.device('cuda'if torch.cuda.is_available()else'cpu'),
     'patient_name':"UnknownPatient",'current_date':datetime.now().strftime("%d %B %Y, %H:%M:%S")+" (Local)",
     'language':"English",'use_header_dimensions_for_volume':True,'voxel_dim_x':1.0,'voxel_dim_y':1.0,'voxel_dim_z':1.0,
     'prediction_label_dhw':None,'prediction_rgba_dhw4':None,'input_for_vis_np_hwd':None,
-    'output_affine':None,'output_header':None,'zip_buffer_pngs':None,'grid_image_buffer':None,'png_download_type':None,
+    'output_affine':None,'output_header':None
 }
 for k,v in default_session_state.items():
     if k not in st.session_state: st.session_state[k]=v
 
 def clear_segmentation_results():
-    keys=['prediction_label_dhw','prediction_rgba_dhw4','input_for_vis_np_hwd','output_affine','output_header',
-          'zip_buffer_pngs','grid_image_buffer','png_download_type']
+    keys=['prediction_label_dhw','prediction_rgba_dhw4','input_for_vis_np_hwd','output_affine','output_header']
     for key in keys: st.session_state[key] = None
 
 def apply_page_styling():
@@ -469,20 +390,6 @@ def apply_page_styling():
         background-color:rgba(0,0,0,1)!important;
     }}
     </style>""", unsafe_allow_html=True)
-
-def display_volumetric_analysis(label_vol_dhw, vox_vol_mm3, seg_map_dict, trans, dim_src_info):
-    st.subheader(trans["volumetric_analysis_header"])
-    st.caption(f"Voxel Dimensions Used: {dim_src_info}")
-    if not seg_map_dict: st.info("No labels for volume calculation."); return
-
-    num_metrics = len(seg_map_dict)
-    cols = st.columns(num_metrics if num_metrics > 0 else 1)
-    for i, (val, name_key) in enumerate(seg_map_dict.items()):
-        with cols[i % num_metrics]:
-            disp_name = trans["labels"].get(name_key, name_key)
-            vox_count = np.sum(label_vol_dhw == val)
-            vol_cm3 = (vox_count * vox_vol_mm3) / 1000.0
-            st.metric(label=disp_name, value=f"{vol_cm3:.2f} {trans.get('volume_label_unit','cm³')}")
 
 # Cached function for model loading
 @st.cache_resource
@@ -526,11 +433,6 @@ if __name__ == "__main__":
     if sel_lang != st.session_state.language:
         st.session_state.language=sel_lang; st.experimental_rerun()
     t = TRANSLATIONS[st.session_state.language]
-
-    try:
-        FONT_FOR_LEGEND_PIL = ImageFont.truetype("arial.ttf", 10)
-    except IOError:
-        FONT_FOR_LEGEND_PIL = ImageFont.load_default()
 
     title_col, gh_col = st.columns([0.9,0.1])
     with title_col: st.title(t["title"])
@@ -709,63 +611,10 @@ if __name__ == "__main__":
                     st.download_button(t["download_nifti"],bio_nii,f"{st.session_state.patient_name}_seg.nii.gz","application/gzip",key="dl_nifti_main_btn")
                 except Exception as e: st.error(f"NIfTI prep error: {e}")
         with dl_c2:
-            st.subheader(t["png_option"])
-            png_format_choice=st.radio("Format:",[t["grid_image_option_label"], t["png_individual_option_label"].format(TARGET_DEPTH=TARGET_DEPTH)],key="png_format_choice_radio")
-            if st.button(t["prepare_png"],key="prepare_png_main_btn"):
-                if png_format_choice==t["grid_image_option_label"]:
-                    with st.spinner("Generating grid image..."):
-                        try:
-                            grid_img_pil=create_slice_grid(input_vis_hwd,pred_rgba_dhw4,st.session_state.patient_name, t, FONT_FOR_LEGEND_PIL)
-                            bio_grid=io.BytesIO();grid_img_pil.save(bio_grid,'PNG',quality=95);bio_grid.seek(0)
-                            st.session_state.grid_image_buffer=bio_grid;st.session_state.png_download_type="grid"
-                            st.image(grid_img_pil,caption=f"Preview ({TARGET_DEPTH} slices with legend)",use_column_width=True);st.success("Grid ready.")
-                        except Exception as e:st.error(f"Grid image error: {e}")
-                else:
-                    with st.spinner(f"Generating {TARGET_DEPTH} PNGs with legends for ZIP..."):
-                        try:
-                            zip_bio_out=io.BytesIO()
-                            with zipfile.ZipFile(zip_bio_out,"w",zipfile.ZIP_DEFLATED) as zf_out:
-                                for idx in range(TARGET_DEPTH):
-                                    slice_in_hw=input_vis_hwd[:,:,idx]; slice_rgba_hw4=pred_rgba_dhw4[idx,:,:,:]; slice_lbl_hw=pred_labels_dhw[idx,:,:]
-                                    unique_lbl_vals=np.unique(slice_lbl_hw)
-                                    present_lbl_names=[SEGMENTATION_LABELS_DICT[val] for val in unique_lbl_vals if val in SEGMENTATION_LABELS_DICT]
-                                    labels_found_str=", ".join(present_lbl_names) if present_lbl_names else "No Tumor Labels"
+            st.subheader("Display Options")
+            st.info("PNG download functionality has been removed to save RAM. The segmentation results are displayed above for visualization.")
 
-                                    fig_png_slice, ax_png_slice = plt.subplots(figsize=(6, 6.2), dpi=150)
-                                    fig_png_slice.patch.set_facecolor('white')
-
-                                    ax_png_slice.imshow(slice_in_hw, cmap='gray', aspect='equal')
-                                    ax_png_slice.imshow(slice_rgba_hw4, aspect='equal')
-                                    ax_png_slice.axis('off')
-                                    ax_png_slice.set_title(f"Patient: {st.session_state.patient_name}\nSlice: {idx+START_SLICE}(orig)/{idx}(proc) | Labels: {labels_found_str}", fontsize=7, color='black')
-
-                                    legend_patches = []
-                                    bg_label_text = t['labels'].get("Background", "Background")
-                                    bg_color_rgba = (0.8, 0.8, 0.8, 1.0)
-                                    legend_patches.append(mpatches.Patch(color=bg_color_rgba, label=bg_label_text))
-                                    for label_val, label_name_key in SEGMENTATION_LABELS_DICT.items():
-                                        text_label = t['labels'].get(label_name_key, label_name_key)
-                                        color_rgba = np.array(LABEL_TO_RGBA.get(label_val, (0,0,0,255))) / 255.0
-                                        legend_patches.append(mpatches.Patch(color=color_rgba, label=text_label))
-
-                                    fig_png_slice.legend(handles=legend_patches, loc='lower center', ncol=len(legend_patches),
-                                                         bbox_to_anchor=(0.5, 0.01), frameon=False, fontsize='x-small')
-                                    fig_png_slice.subplots_adjust(bottom=0.12, top=0.9)
-
-                                    png_byte_buffer=io.BytesIO()
-                                    fig_png_slice.savefig(png_byte_buffer,format='png',bbox_inches='tight', facecolor=fig_png_slice.get_facecolor()); plt.close(fig_png_slice); png_byte_buffer.seek(0)
-
-                                    fn_safe_labels="_".join(labels_found_str.replace("/","-").split(", ")).replace(" ","_") if present_lbl_names else "NoTumor"
-                                    zf_out.writestr(f"{st.session_state.patient_name}_slice_{idx+START_SLICE:03d}_{fn_safe_labels}.png",png_byte_buffer.getvalue())
-                            st.session_state.zip_buffer_pngs=zip_bio_out;st.session_state.png_download_type="zip";st.success("ZIP archive ready.")
-                        except Exception as e:st.error(f"PNG ZIP creation error: {e}"); st.exception(e)
-
-            if st.session_state.png_download_type=="grid" and st.session_state.grid_image_buffer:
-                st.download_button(t["download_grid_image_label"],st.session_state.grid_image_buffer,f"{st.session_state.patient_name}_slice_grid.png","image/png",key="dl_grid_img_main_btn")
-            elif st.session_state.png_download_type=="zip" and st.session_state.zip_buffer_pngs:
-                st.download_button(t["download_png"].format(st.session_state.patient_name),st.session_state.zip_buffer_pngs,f"{st.session_state.patient_name}_slices_legend.zip","application/zip",key="dl_zip_archive_main_btn")
     else:
         st.info("Segmentation results, volumetric analysis, and download options will appear here after running segmentation.")
 
     st.markdown("---");st.markdown(f"Timestamp: {st.session_state.current_date}");st.caption(f"{t['running_on']}: {st.session_state.device}")
-
