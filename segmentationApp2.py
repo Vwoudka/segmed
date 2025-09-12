@@ -199,7 +199,7 @@ class AttentionUNet3D(nn.Module):
         self.decoder2 = self._make_block(base_features * 4, base_features * 2)
 
         self.up1 = self._make_upsample(base_features * 2, base_features)
-        self.attn1 = AttentionGate3D(F_g=base_features, F_l=base_features, F_int=base_features / 2)
+        self.attn1 = AttentionGate3D(F_g=base_features, F_l=base_features, F_int=base_features // 2)  # Fixed: integer division
         self.decoder1 = self._make_block(base_features * 2, base_features)
 
         self.final_conv = nn.Conv3d(base_features, out_channels, kernel_size=1, bias=True)
